@@ -18,50 +18,23 @@ from config import *
 
 
 def set_all_seeds(seed=42):
-    """
-    Устанавливает фиксированные значения для всех возможных генераторов случайных чисел.
-
-    Parameters
-    ----------
-    seed : int, optional
-        Значение, которое будет использоваться в качестве начального для генерации случайных чисел (по умолчанию 42).
-
-    Notes
-    -----
-    - Устанавливает значения для генераторов случайных чисел в Python, NumPy и PyTorch.
-    - Обеспечивает воспроизводимость экспериментов, включая случайное поведение на GPU.
-    """
-    # python's seeds
+    # Устанавливаем seed для встроенного генератора Python
     random.seed(seed)
+    # Устанавливаем seed для хэш-функции Python (опция для контроля поведения хэшей)
     os.environ['PYTHONHASHSEED'] = str(seed)
+    # Устанавливаем seed для NumPy
     np.random.seed(seed)
 
-    # torch's seeds
+    # Устанавливаем seed для PyTorch
     torch.manual_seed(seed)
+    # Устанавливаем seed для генератора на CUDA
     torch.cuda.manual_seed(seed)
+    # Отключаем недетерминированное поведение в алгоритмах CUDNN
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
 
 def denormalize(image_tensor):
-    """
-    Преобразует нормализованный тензор изображения обратно в оригинальный диапазон.
-
-    Parameters
-    ----------
-    image_tensor : torch.tensor
-        Нормализованный тензор изображения (значения в диапазоне [0, 1]).
-
-    Returns
-    -------
-    torch.tensor
-        Денормализованный тензор изображения (значения в диапазоне [0, 255], тип uint8).
-
-    Notes
-    -----
-    - Использует глобальные переменные `mean` и `std` для выполнения обратной нормализации.
-    - Преобразует значения в диапазон [0, 255] и тип uint8.
-    """
     # Преобразуем mean и std в тензоры и переносим их на то же устройство, что и image
     tensor_mean = torch.tensor(mean).view(-1, 1, 1).to(image_tensor.device)
     tensor_std = torch.tensor(std).view(-1, 1, 1).to(image_tensor.device)
@@ -74,28 +47,6 @@ def denormalize(image_tensor):
 
 
 def show_images(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=None):
-    """
-    Отображает изображения из датасета, организованные по классам.
-
-    Parameters
-    ----------
-    dataset : ImageClassificationDataset
-        Датасет, содержащий изображения и их метки.
-    amount : int, optional
-        Количество изображений для каждого класса (по умолчанию 3).
-    figsize : tuple, optional
-        Размер фигуры в формате (ширина, высота) для одного изображения (по умолчанию (4, 4)).
-    classes : dict or list, optional
-        Словарь или список, где индекс класса соответствует названию класса (по умолчанию None).
-    n_classes : int, optional
-        Максимальное количество классов для отображения (по умолчанию None, отображаются все классы).
-
-    Notes
-    -----
-    - Предполагается, что датасет имеет атрибут `labels`, содержащий метки классов.
-    - Для корректного отображения изображений используется функция `denormalize`.
-
-    """
     # Получаем метки из dataset
     labels = np.array(dataset.labels)
 
@@ -147,46 +98,14 @@ def show_images(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=None)
 
 
 class ImageDataset(Dataset):
-    """
-    Базовый класс датасета для загрузки изображений с применением трансформаций.
-
-    Parameters
-    ----------
-    image_paths : list
-        Список путей к изображениям.
-    transform : callable
-        Трансформация, применяемая к изображениям.
-
-    """
     def __init__(self, image_paths, transform):
         self.image_paths = image_paths
         self.transform = transform
 
     def __len__(self):
-        """
-        Возвращает количество изображений в датасете.
-
-        Returns
-        -------
-        int
-            Количество изображений.
-        """
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        """
-        Возвращает изображение после применения трансформаций.
-
-        Parameters
-        ----------
-        idx : int
-            Индекс изображения в датасете.
-
-        Returns
-        -------
-        torch.Tensor
-            Преобразованное изображение в формате PyTorch Tensor.
-        """
         # Считываем изображение
         image_path = self.image_paths[idx]
         image = Image.open(image_path).convert("RGB")
@@ -198,38 +117,11 @@ class ImageDataset(Dataset):
 
 
 class ImageClassificationDataset(ImageDataset):
-    """
-    Датасет для классификации изображений, дополненный метками классов.
-
-    Parameters
-    ----------
-    image_paths : list
-        Список путей к изображениям.
-    labels : list
-        Список меток классов, соответствующих изображениям.
-    transform : callable
-        Трансформация, применяемая к изображениям.
-
-    """
     def __init__(self, image_paths, labels, transform):
         super().__init__(image_paths, transform)
         self.labels = labels
 
     def __getitem__(self, idx):
-        """
-        Возвращает изображение и его метку.
-
-        Parameters
-        ----------
-        idx : int
-            Индекс изображения в датасете.
-
-        Returns
-        -------
-        tuple
-            torch.Tensor: Преобразованное изображение.
-            torch.Tensor: Метка класса в формате PyTorch Tensor.
-        """
         # Получаем метку
         label = self.labels[idx]
 

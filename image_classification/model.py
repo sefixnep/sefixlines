@@ -1,6 +1,3 @@
-# Работа с данными
-import pandas as pd
-
 # Torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
@@ -9,7 +6,7 @@ from torch.utils.data import DataLoader
 import seaborn as sns
 
 # Метрики
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.metrics import accuracy_score
 
 # Остальное
 from tqdm.notebook import tqdm
@@ -19,55 +16,8 @@ from IPython.display import clear_output
 from image_classification.data import *
 
 
-def metrics(y_true, y_pred, count_round=4):
-    """
-    Вычисляет метрики качества классификации: accuracy, precision, recall и f1-score.
-
-    Parameters
-    ----------
-    y_true : array-like
-        Истинные метки классов.
-    y_pred : array-like
-        Предсказанные метки классов.
-    count_round : int, optional
-        Количество знаков после запятой для округления метрик (по умолчанию 4).
-
-    Returns
-    -------
-    pd.Series
-        Серия с рассчитанными метриками: accuracy, precision, recall и f1-score.
-    """
-    accuracy = accuracy_score(y_true, y_pred)
-    precision = precision_score(y_true, y_pred, average='macro')
-    recall = recall_score(y_true, y_pred, average='macro')
-    f1 = f1_score(y_true, y_pred, average='macro')
-
-    rounded_scores = np.round([accuracy, precision, recall, f1], count_round)
-    index_labels = ['accuracy', 'precision', 'recall', 'f1']
-
-    return pd.Series(rounded_scores, index=index_labels)
-
-
 class ImageClassifier(nn.Module):
-    """
-    Класс для обучения, оценки и сохранения модели классификации изображений.
-
-    Parameters
-    ----------
-    model : nn.Module
-        PyTorch модель для классификации.
-    name : str, optional
-        Имя модели для сохранения файлов (по умолчанию 'Model').
-    optimizer : torch.optim.Optimizer, optional
-        Оптимизатор для обучения модели (по умолчанию Adam с lr=3e-4).
-    loss_fn : callable, optional
-        Функция потерь (по умолчанию CrossEntropyLoss).
-    metric : callable, optional
-        Метрика для оценки качества модели (по умолчанию accuracy_score).
-    save_dir : str, optional
-        Директория для сохранения модели (по умолчанию "../models").
-    """
-    def __init__(self, model, name='Model', optimizer=None, loss_fn=None, metric=None, save_dir="../models"):
+    def __init__(self, model, name='Model', optimizer=None, loss_fn=None, metric=None, save_dir="./models"):
         super().__init__()
 
         # Название модели
@@ -108,32 +58,9 @@ class ImageClassifier(nn.Module):
         self.stop_fiting = False
 
     def forward(self, x):
-        """
-        Прямой проход данных через модель.
-
-        Parameters
-        ----------
-        x : torch.tensor
-            Входные данные.
-
-        Returns
-        -------
-        torch.tensor
-            Результат работы модели.
-        """
         return self.__model(x)
 
     def run_epoch(self, data_loader, mode='train'):
-        """
-        Выполняет одну эпоху обучения или оценки.
-
-        Args:
-            data_loader: DataLoader с данными.
-            mode: Режим выполнения ('train' или 'eval').
-
-        Returns:
-            Средний loss и метрика за эпоху.
-        """
         # Установка режима работы модели
         if mode == 'train':
             self.__model.train()
@@ -193,9 +120,6 @@ class ImageClassifier(nn.Module):
         return total_loss / count, self.__metric(labels_true, labels_pred)
 
     def plot_stats(self):
-        """
-        Визуализирует историю потерь и метрик за все эпохи обучения.
-        """
         # Настраиваем график
         plt.figure(figsize=(16, 8))
         epochs = range(1, len(self.__train_loss_history) + 1)
@@ -243,26 +167,6 @@ class ImageClassifier(nn.Module):
 
     def fit(self, train_loader, valid_loader, num_epochs,
             min_loss=False, visualize=True, use_best_model=True, eps=0.001):
-        """
-        Обучает модель на тренировочном наборе данных и оценивает на валидационном.
-
-        Parameters
-        ----------
-        train_loader : DataLoader
-            DataLoader для тренировочных данных.
-        valid_loader : DataLoader
-            DataLoader для валидационных данных.
-        num_epochs : int
-            Количество эпох обучения.
-        min_loss : bool, optional
-            Если True, сохраняет модель с минимальной потерей; иначе — с максимальной метрикой (по умолчанию False).
-        visualize : bool, optional
-            Если True, визуализирует графики после каждой эпохи (по умолчанию True).
-        use_best_model : bool, optional
-            Если True, загружает лучшие веса модели после завершения обучения (по умолчанию True).
-        eps : float, optional
-            Минимальное изменение метрики для обновления модели (по умолчанию 0.001).
-        """
         # Настраиваем стиль графиков
         sns.set_style('whitegrid')
         sns.set_palette('Set2')
@@ -328,29 +232,12 @@ class ImageClassifier(nn.Module):
 
     @torch.inference_mode()
     def predict_proba(self, inputs, batch_size=50, progress_bar=True):
-        """
-        Предсказывает вероятности классов для входных данных.
-
-        Parameters
-        ----------
-        inputs : torch.Tensor, list или Dataset
-            Входные данные для предсказания.
-        batch_size : int, optional
-            Размер батча для предсказания (по умолчанию 50).
-        progress_bar : bool, optional
-            Если True, отображает прогресс-бар (по умолчанию True).
-
-        Returns
-        -------
-        list
-            Список предсказанных вероятностей классов.
-        """
         # Обработка одного изображения
         if isinstance(inputs, torch.Tensor) and inputs.dim() == 3:
             return self.__model(inputs.unsqueeze(0).to(device))[0].tolist()
 
         # Определяем, является ли входной списоком или датасетом
-        if isinstance(inputs, (list, Dataset)):
+        if isinstance(inputs, (list, ImageDataset)):
             predictions = []
             data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False)
 
@@ -368,33 +255,13 @@ class ImageClassifier(nn.Module):
         raise ValueError("Unsupported input type. Expected single tensor, list of tensors, or Dataset.")
 
     def predict(self, inputs, *args, **kwargs):
-        """
-        Предсказывает классы для входных данных.
-
-        Parameters
-        ----------
-        inputs : torch.Tensor, list или Dataset
-            Входные данные для предсказания.
-        *args, **kwargs : остальные значения для метода self.predict_proba
-
-        Returns
-        -------
-        list
-            Список предсказанных меток классов.
-        """
         return np.argmax(self.predict_proba(inputs, *args, **kwargs), axis=1
-            if isinstance(inputs, (list, Dataset)) else None).tolist()
+            if isinstance(inputs, (list, ImageDataset)) else None).tolist()
 
     def save_model(self):
-        """
-        Сохраняет текущие веса модели в файл.
-        """
         torch.save(self.__model.state_dict(), self.path)
 
     def load(self):
-        """
-        Загружает веса модели из сохраненного файла.
-        """
         # Переводим модель в режим оценки
         self.__model.eval()
 
