@@ -7,16 +7,14 @@ from torch.utils.data import Dataset
 
 # Визуализация
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 # Остальное
 import os
 import random
 from PIL import Image
-from tqdm.notebook import tqdm
 
 # Config
-from notebooks.image_classification.config import *
+from config import *
 
 
 def set_all_seeds(seed=42):

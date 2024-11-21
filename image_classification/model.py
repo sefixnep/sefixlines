@@ -5,14 +5,18 @@ import pandas as pd
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
+# Визуализация
+import seaborn as sns
+
 # Метрики
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
 # Остальное
+from tqdm.notebook import tqdm
 from IPython.display import clear_output
 
 # Configuration
-from notebooks.image_classification.data import *
+from image_classification.data import *
 
 
 def metrics(y_true, y_pred, count_round=4):
