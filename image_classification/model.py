@@ -52,7 +52,8 @@ class ImageClassifier(nn.Module):
         self.__train_score_history, self.__valid_score_history = [], []
 
         # Лучшие значения
-        self.best_epoch, self.best_score, self.best_loss = 0, 0, float('inf')
+        self.best_score, self.best_score_epoch = None, 0
+        self.best_loss, self.best_loss_epoch = None, 0
 
         # Флаг для остановки обучения
         self.stop_fiting = False
@@ -166,7 +167,7 @@ class ImageClassifier(nn.Module):
         plt.show()
 
     def fit(self, train_loader, valid_loader, num_epochs,
-            min_loss=False, visualize=True, use_best_model=True, eps=0.001):
+            min_loss=False, visualize=True, use_best_model=True):
         # Настраиваем стиль графиков
         sns.set_style('whitegrid')
         sns.set_palette('Set2')
@@ -197,19 +198,30 @@ class ImageClassifier(nn.Module):
             print(f"Score: {self.__metric.__name__}")
             print(f" - Train: {train_score:.4f}\n - Valid: {valid_score:.4f}\n")
 
-            # Сохраняем лучшую модель на основе улучшения метрики
-            if (self.best_score is None or (valid_score - self.best_score > eps) or min_loss) and (
-                    not min_loss or valid_loss < self.best_loss) and not self.stop_fiting:
-                print("(Model saved)")
-                self.best_epoch, self.best_score, self.best_loss = len(self.__train_loss_history), valid_score, valid_loss
-                self.save_model()
+            if self.best_loss is None or valid_loss < self.best_loss:
+                self.best_loss = valid_loss
+                self.best_loss_epoch = epoch
+
+                if min_loss:
+                    print("(Model saved)")
+                    self.save_model()
+
+            if self.best_score is None or valid_score > self.best_score:
+                self.best_score = valid_score
+                self.best_score_epoch = epoch
+
+                if not min_loss:
+                    print("(Model saved)")
+                    self.save_model()
 
             # Визуализация результатов после второй эпохи
             if len(self.__train_loss_history) > 1:
                 if visualize:
                     self.plot_stats()
 
-                print(f"Best valid score: {self.best_score:.4f} ({self.best_epoch} epoch)\n")
+                print("Best:")
+                print(f"Loss - {self.best_loss:.4f} ({self.best_loss_epoch} epoch)")
+                print(f"Score - {self.best_score:.4f} ({self.best_score_epoch} epoch)\n")
 
             # Проверяем флаг остановки обучения
             if self.stop_fiting:
@@ -220,12 +232,14 @@ class ImageClassifier(nn.Module):
 
         # Загружаем лучшие веса модели
         if use_best_model and os.path.exists(self.path):
+            best_epoch = self.best_loss_epoch if min_loss else self.best_score_epoch
+
             # Losses
-            self.__train_loss_history = self.__train_loss_history[:self.best_epoch]
-            self.__valid_loss_history = self.__valid_loss_history[:self.best_epoch]
+            self.__train_loss_history = self.__train_loss_history[:best_epoch]
+            self.__valid_loss_history = self.__valid_loss_history[:best_epoch]
             # Scores
-            self.__train_score_history = self.__train_score_history[:self.best_epoch]
-            self.__valid_score_history = self.__valid_score_history[:self.best_epoch]
+            self.__train_score_history = self.__train_score_history[:best_epoch]
+            self.__valid_score_history = self.__valid_score_history[:best_epoch]
 
             # Load best model
             self.load()
