@@ -117,6 +117,9 @@ class ImageClassifier(nn.Module):
             self.stop_fiting = True
             print(f"\n{progress_desc} прервано пользователем. Завершаем текущую эпоху...")
 
+            if not count:
+                return 0, 0
+
         # Возвращаем средний loss и метрику за эпоху
         return total_loss / count, self.__metric(labels_true, labels_pred)
 
