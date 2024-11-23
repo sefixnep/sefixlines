@@ -1,3 +1,0 @@
-# **Image Classification**
-### - Efficenet, ResNet...
-### - Models from Hagging Face
