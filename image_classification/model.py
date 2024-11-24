@@ -205,7 +205,7 @@ class ImageClassifier(nn.Module):
                 self.best_loss = valid_loss
                 self.best_loss_epoch = epoch
 
-                if min_loss:
+                if min_loss and not self.stop_fiting:
                     print("(Model saved)")
                     self.save_model()
 
@@ -213,7 +213,7 @@ class ImageClassifier(nn.Module):
                 self.best_score = valid_score
                 self.best_score_epoch = epoch
 
-                if not min_loss:
+                if not min_loss and not self.stop_fiting:
                     print("(Model saved)")
                     self.save_model()
 
