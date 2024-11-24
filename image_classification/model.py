@@ -73,7 +73,7 @@ class ImageClassifier(nn.Module):
         # Переменные для подсчета
         count = 0
         total_loss = 0
-        labels_true, labels_pred = [], []
+        total_score = 0
 
         # Отключаем градиенты в режиме оценки
         torch.set_grad_enabled(mode == 'train')
@@ -96,21 +96,21 @@ class ImageClassifier(nn.Module):
                     loss.backward()
                     self.__optimizer.step()
 
+                labels_true = labels.cpu().numpy()
+                labels_pred = output.argmax(dim=1).cpu().numpy()
+
                 # Подсчет потерь и метрик
                 total_loss += loss.item()
-                labels_true.extend(labels.cpu().numpy())
-                labels_pred.extend(output.argmax(dim=1).cpu().numpy())
+                total_score += self.__metric(labels_true, labels_pred)
 
                 count += 1
 
                 # Обновляем описание tqdm с текущими значениями
                 current_loss = total_loss / count
-                current_score = self.__metric(labels_true, labels_pred)
+                current_score = total_score / count
                 progress_bar.set_postfix(
-                    **{
-                        self.__loss_fn.__class__.__name__: f"{current_loss:.4f}",
-                        self.__metric.__name__: f"{current_score:.4f}",
-                    }
+                    loss=f"{current_loss:.4f}",
+                    **{self.__metric.__name__: f"{current_score:.4f}"}
                 )
 
         except KeyboardInterrupt:
@@ -121,7 +121,7 @@ class ImageClassifier(nn.Module):
                 return 0, 0
 
         # Возвращаем средний loss и метрику за эпоху
-        return total_loss / count, self.__metric(labels_true, labels_pred)
+        return total_loss / count, total_score / count
 
     def plot_stats(self):
         # Настраиваем график
