@@ -58,7 +58,6 @@ def show_images(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=None)
     figsize = (figsize[0] * cols, figsize[1] * rows)
 
     fig, axes = plt.subplots(rows, cols, figsize=figsize)
-    fig.patch.set_alpha(0.0)  # Прозрачный фон
 
     if rows == 1:
         axes = np.expand_dims(axes, axis=0)
@@ -86,7 +85,7 @@ def show_images(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=None)
             ax = axes[row][col]
             ax.imshow(denormalize(image).cpu().numpy().transpose(1, 2, 0))
 
-            ax.set_title(class_name, fontsize=10, color='white')  # Белый текст для контраста
+            ax.set_title(class_name, fontsize=10)  # Белый текст для контраста
             ax.axis("off")
 
     # Отключаем лишние оси, если изображений меньше, чем ячеек
