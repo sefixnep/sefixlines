@@ -17,7 +17,7 @@ from image_classification.data import *
 
 
 class ImageClassifier(nn.Module):
-    def __init__(self, model, name='Model', optimizer=None, loss_fn=None, metric=None, save_dir="./models"):
+    def __init__(self, model, name='Model', optimizer=None, scheduler=None, loss_fn=None, metric=None, save_dir="./models"):
         super().__init__()
 
         # Название модели
@@ -33,6 +33,9 @@ class ImageClassifier(nn.Module):
         if optimizer is None:
             optimizer = optim.Adam(model.parameters(), lr=3e-4)
         self.__optimizer = optimizer
+
+        # Планировщик
+        self.__scheduler = scheduler
 
         # Функция потерь
         if loss_fn is None:
@@ -195,6 +198,9 @@ class ImageClassifier(nn.Module):
             clear_output()
 
             print(f"Epoch: {epoch}/{num_epochs} (total: {len(self.__train_loss_history)})\n")
+
+            print(f"Learning Rate: {self.__scheduler.get_last_lr()[0]}\n")
+
             print(f'Loss: {self.__loss_fn.__class__.__name__}')
             print(f" - Train: {train_loss:.4f}\n - Valid: {valid_loss:.4f}\n")
 
@@ -216,6 +222,10 @@ class ImageClassifier(nn.Module):
                 if not min_loss and not self.stop_fiting:
                     print("(Model saved)")
                     self.save_model()
+
+            # Делаем шаг планировщиком
+            if self.__scheduler is not None:
+                self.__scheduler.step()
 
             # Визуализация результатов после второй эпохи
             if len(self.__train_loss_history) > 1:
