@@ -67,14 +67,17 @@ class Classifier(nn.Module):
 
         # Путь для сохранения модели
         if os.path.exists(model_dir):
-            results_path = f"{self.model_dir}/results.csv"
+            if exist_ok:
+                results = pd.read_csv(f"{self.model_dir}/results.csv")
 
-            if exist_ok and os.path.exists(results_path):
-                results = pd.read_csv(results_path)
-
+                # Синхронизируем историю
                 self.__lr_history = results['lr'].tolist()
                 self.__train_loss_history, self.__valid_loss_history = results['train_loss'].tolist(), results['valid_loss'].tolist()
                 self.__train_score_history, self.__valid_score_history = results['train_score'].tolist(), results['valid_score'].tolist()
+
+                # Лучшие значения
+                self.best_score, self.best_score_epoch = results['valid_score'].max(), results['valid_score'].argmax() + 1
+                self.best_loss, self.best_loss_epoch = results['valid_loss'].min(), results['valid_loss'].argmin() + 1
 
                 self.load("last")
             else:
@@ -199,9 +202,11 @@ class Classifier(nn.Module):
         sns.set_style('whitegrid')
         sns.set_palette('Set2')
 
-        for epoch in range(len(self.__train_loss_history) + 1, len(self.__train_loss_history) + num_epochs + 1):
+        start_epoch = len(self.__train_loss_history) + 1
+
+        for epoch in range(start_epoch, start_epoch + num_epochs):
             # Объявление о новой эпохе
-            print(f"\nEpoch: {epoch}/{num_epochs} (total: {len(self.__train_loss_history) + 1})\n")
+            print(f"\nEpoch: {epoch}/{start_epoch + num_epochs - 1}\n")
 
             # Обучение на тренировочных данных
             train_loss, train_score = self.run_epoch(train_loader, mode='train')
@@ -212,7 +217,7 @@ class Classifier(nn.Module):
             # Очищаем вывод для обновления информации
             clear_output()
 
-            print(f"Epoch: {epoch}/{num_epochs} (total: {len(self.__train_loss_history) + 1})\n")
+            print(f"Epoch: {epoch}/{start_epoch + num_epochs - 1}\n")
 
             print(f"Learning Rate: {self.lr}\n")
 
@@ -222,44 +227,50 @@ class Classifier(nn.Module):
             print(f"Score: {self.__metric.__name__}")
             print(f" - Train: {train_score:.4f}\n - Valid: {valid_score:.4f}\n")
 
-            # Сохранение истории
-            self.__lr_history.append(self.lr)
-            self.__train_loss_history.append(train_loss)
-            self.__valid_loss_history.append(valid_loss)
-            self.__train_score_history.append(train_score)
-            self.__valid_score_history.append(valid_score)
+            if not self.stop_fiting:
+                # Сохранение истории
+                self.__lr_history.append(self.lr)
+                self.__train_loss_history.append(train_loss)
+                self.__valid_loss_history.append(valid_loss)
+                self.__train_score_history.append(train_score)
+                self.__valid_score_history.append(valid_score)
 
-            pd.DataFrame({
-                "epoch": range(1, len(self.__train_loss_history) + 1),
-                "lr": self.__lr_history,
-                "train_loss": self.__train_loss_history,
-                "valid_loss": self.__valid_loss_history,
-                "train_score": self.__train_score_history,
-                "valid_score": self.__valid_score_history,
-            }).to_csv(f"{self.model_dir}/results.csv", index=False)
+                pd.DataFrame({
+                    "epoch": range(1, len(self.__train_loss_history) + 1),
+                    "lr": self.__lr_history,
+                    "train_loss": self.__train_loss_history,
+                    "valid_loss": self.__valid_loss_history,
+                    "train_score": self.__train_score_history,
+                    "valid_score": self.__valid_score_history,
+                }).to_csv(f"{self.model_dir}/results.csv", index=False)
 
-            # Сохранение модели
-            # - Last
-            self.save_model("last")
+                # Сохранение модели
+                # - Last
+                self.save_model("last")
 
-            # - Best
-            if self.best_loss is None or valid_loss < self.best_loss:
-                self.best_loss = valid_loss
-                self.best_loss_epoch = epoch
+                # - Best
+                if self.best_loss is None or valid_loss < self.best_loss:
+                    self.best_loss = valid_loss
+                    self.best_loss_epoch = epoch
 
-                if min_loss and not self.stop_fiting:
-                    self.save_model()
+                    if min_loss and not self.stop_fiting:
+                        self.save_model()
 
-            if self.best_score is None or valid_score > self.best_score:
-                self.best_score = valid_score
-                self.best_score_epoch = epoch
+                if self.best_score is None or valid_score > self.best_score:
+                    self.best_score = valid_score
+                    self.best_score_epoch = epoch
 
-                if not min_loss and not self.stop_fiting:
-                    self.save_model()
+                    if not min_loss and not self.stop_fiting:
+                        self.save_model()
 
-            # - Epoch
-            if save_period is not None and epoch % save_period == 0:
-                self.save_model(epoch)
+                # - Epoch
+                if save_period is not None and epoch % save_period == 0:
+                    self.save_model(epoch)
+
+                # Делаем шаг планировщиком
+                if self.__scheduler is not None:
+                    self.__scheduler.step()
+                    self.lr = self.__scheduler.get_last_lr()[0]
 
             # Визуализация истории
             if len(self.__train_loss_history) > 1:
@@ -270,10 +281,6 @@ class Classifier(nn.Module):
                 print(f"Loss - {self.best_loss:.4f} ({self.best_loss_epoch} epoch)")
                 print(f"Score - {self.best_score:.4f} ({self.best_score_epoch} epoch)\n")
 
-            # Делаем шаг планировщиком
-            if self.__scheduler is not None:
-                self.__scheduler.step()
-                self.lr = self.__scheduler.get_last_lr()[0]
 
             # Проверяем флаг остановки обучения
             if self.stop_fiting:
