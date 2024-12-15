@@ -98,12 +98,12 @@ class Classifier(nn.Module):
         progress_bar = tqdm(data_loader, desc=progress_desc)
 
         try:
-            for images, labels in progress_bar:
+            for data, labels in progress_bar:
                 if mode == 'train':
                     self.__optimizer.zero_grad()
 
                 # Прямой проход
-                output = self.__model(images)
+                output = self.__model(data)
                 loss = self.__loss_fn(output, labels)
 
                 # Обратное распространение и шаг оптимизатора только в режиме тренировки
