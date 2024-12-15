@@ -1,3 +1,6 @@
+# Работа с данными
+import pandas as pd
+
 # Torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
@@ -9,7 +12,7 @@ import seaborn as sns
 from sklearn.metrics import accuracy_score
 
 # Остальное
-from tqdm.notebook import tqdm
+import shutil
 from IPython.display import clear_output
 
 # Configuration
@@ -17,17 +20,24 @@ from image_classification.data import *
 
 
 class ImageClassifier(nn.Module):
-    def __init__(self, model, name='Model', optimizer=None, scheduler=None, loss_fn=None, metric=None, save_dir="./models"):
+    def __init__(self, model, name='Model', optimizer=None, scheduler=None,
+                 loss_fn=None, metric=None, model_dir=None, exist_ok=False):
         super().__init__()
 
         # Название модели
         self.name = name
 
-        # Путь для сохранения модели
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+        if model_dir is None:
+            model_dir = f"./models/{name}"
+        self.model_dir = model_dir
 
-        self.path = f"{save_dir}/{self.name}.pth"
+        # Путь для сохранения модели
+        if os.path.exists(model_dir):
+            assert exist_ok, "Папка с моделью уже занята"
+            shutil.rmtree(model_dir)
+
+        os.makedirs(self.model_dir)
+        os.makedirs(f"{self.model_dir}/weights")
 
         # Оптимизатор
         if optimizer is None:
@@ -36,6 +46,7 @@ class ImageClassifier(nn.Module):
 
         # Планировщик
         self.__scheduler = scheduler
+        self.lr = optimizer.param_groups[0]['lr']
 
         # Функция потерь
         if loss_fn is None:
@@ -50,7 +61,8 @@ class ImageClassifier(nn.Module):
         # Переносим модель на устройство (CPU или GPU)
         self.__model = model.to(device)
 
-        # Инициализируем историю качества
+        # Инициализируем историю
+        self.__lr_history = []
         self.__train_loss_history, self.__valid_loss_history = [], []
         self.__train_score_history, self.__valid_score_history = [], []
 
@@ -173,12 +185,12 @@ class ImageClassifier(nn.Module):
         plt.show()
 
     def fit(self, train_loader, valid_loader, num_epochs,
-            min_loss=False, visualize=True, use_best_model=True):
+            min_loss=False, visualize=True, use_best_model=True, save_period=None):
         # Настраиваем стиль графиков
         sns.set_style('whitegrid')
         sns.set_palette('Set2')
 
-        for epoch in range(1, num_epochs + 1):
+        for epoch in range(len(self.__train_loss_history) + 1, len(self.__train_loss_history) + num_epochs + 1):
             # Объявление о новой эпохе
             print(f"\nEpoch: {epoch}/{num_epochs} (total: {len(self.__train_loss_history) + 1})\n")
 
@@ -188,18 +200,12 @@ class ImageClassifier(nn.Module):
             # Оценка на валидационных данных
             valid_loss, valid_score = self.run_epoch(valid_loader, mode='eval')
 
-            # Сохраняем историю потерь и метрик
-            self.__train_loss_history.append(train_loss)
-            self.__valid_loss_history.append(valid_loss)
-            self.__train_score_history.append(train_score)
-            self.__valid_score_history.append(valid_score)
-
             # Очищаем вывод для обновления информации
             clear_output()
 
-            print(f"Epoch: {epoch}/{num_epochs} (total: {len(self.__train_loss_history)})\n")
+            print(f"Epoch: {epoch}/{num_epochs} (total: {len(self.__train_loss_history) + 1})\n")
 
-            print(f"Learning Rate: {self.__scheduler.get_last_lr()[0]}\n")
+            print(f"Learning Rate: {self.lr}\n")
 
             print(f'Loss: {self.__loss_fn.__class__.__name__}')
             print(f" - Train: {train_loss:.4f}\n - Valid: {valid_loss:.4f}\n")
@@ -207,12 +213,41 @@ class ImageClassifier(nn.Module):
             print(f"Score: {self.__metric.__name__}")
             print(f" - Train: {train_score:.4f}\n - Valid: {valid_score:.4f}\n")
 
+            # Визуализация результатов после второй эпохи
+            if len(self.__train_loss_history):
+                if visualize:
+                    self.plot_stats()
+
+                print("Best:")
+                print(f"Loss - {self.best_loss:.4f} ({self.best_loss_epoch} epoch)")
+                print(f"Score - {self.best_score:.4f} ({self.best_score_epoch} epoch)\n")
+
+            # Сохранение истории
+            self.__lr_history.append(self.lr)
+            self.__train_loss_history.append(train_loss)
+            self.__valid_loss_history.append(valid_loss)
+            self.__train_score_history.append(train_score)
+            self.__valid_score_history.append(valid_score)
+
+            pd.DataFrame({
+                "epoch": range(1, len(self.__train_loss_history) + 1),
+                "lr": self.__lr_history,
+                "train_loss": self.__train_loss_history,
+                "valid_loss": self.__valid_loss_history,
+                "train_score": self.__train_score_history,
+                "valid_score": self.__valid_score_history,
+            }).to_csv(f"{self.model_dir}/results.csv", index=False)
+
+            # Сохранение модели
+            # - Last
+            self.save_model("last")
+
+            # - Best
             if self.best_loss is None or valid_loss < self.best_loss:
                 self.best_loss = valid_loss
                 self.best_loss_epoch = epoch
 
                 if min_loss and not self.stop_fiting:
-                    print("(Model saved)")
                     self.save_model()
 
             if self.best_score is None or valid_score > self.best_score:
@@ -220,21 +255,16 @@ class ImageClassifier(nn.Module):
                 self.best_score_epoch = epoch
 
                 if not min_loss and not self.stop_fiting:
-                    print("(Model saved)")
                     self.save_model()
+
+            # - Epoch
+            if save_period is not None and epoch % save_period == 0:
+                self.save_model(epoch)
 
             # Делаем шаг планировщиком
             if self.__scheduler is not None:
                 self.__scheduler.step()
-
-            # Визуализация результатов после второй эпохи
-            if len(self.__train_loss_history) > 1:
-                if visualize:
-                    self.plot_stats()
-
-                print("Best:")
-                print(f"Loss - {self.best_loss:.4f} ({self.best_loss_epoch} epoch)")
-                print(f"Score - {self.best_score:.4f} ({self.best_score_epoch} epoch)\n")
+                self.lr = self.__scheduler.get_last_lr()[0]
 
             # Проверяем флаг остановки обучения
             if self.stop_fiting:
@@ -244,17 +274,7 @@ class ImageClassifier(nn.Module):
                 break
 
         # Загружаем лучшие веса модели
-        if use_best_model and os.path.exists(self.path):
-            best_epoch = self.best_loss_epoch if min_loss else self.best_score_epoch
-
-            # Losses
-            self.__train_loss_history = self.__train_loss_history[:best_epoch]
-            self.__valid_loss_history = self.__valid_loss_history[:best_epoch]
-            # Scores
-            self.__train_score_history = self.__train_score_history[:best_epoch]
-            self.__valid_score_history = self.__valid_score_history[:best_epoch]
-
-            # Load best model
+        if use_best_model:
             self.load()
 
     @torch.inference_mode()
@@ -285,13 +305,24 @@ class ImageClassifier(nn.Module):
         return np.argmax(self.predict_proba(inputs, *args, **kwargs), axis=1
             if isinstance(inputs, (list, ImageDataset)) else None).tolist()
 
-    def save_model(self):
-        torch.save(self.__model.state_dict(), self.path)
+    def save_model(self, name="best"):
+        if isinstance(name, int) or name.isdigit():
+            name = f"epoch_{name}"
 
-    def load(self):
-        # Переводим модель в режим оценки
-        self.__model.eval()
+        path = f"{self.model_dir}/weights/{name}.pth"
+        torch.save(self.__model.state_dict(), path)
 
-        # Загружаем веса и применяем их к модели
-        state_dict = torch.load(self.path, map_location=device, weights_only=True)
-        self.__model.load_state_dict(state_dict)
+    def load(self, name="best"):
+        if isinstance(name, int) or name.isdigit():
+            name = f"epoch_{name}"
+
+        path = f"{self.model_dir}/weights/{name}.pth"
+        if os.path.exists(path):
+            # Переводим модель в режим оценки
+            self.__model.eval()
+
+            # Загружаем веса и применяем их к модели
+            state_dict = torch.load(path, map_location=device, weights_only=True)
+            self.__model.load_state_dict(state_dict)
+        else:
+            print(f"Не получилось загрузить модель, путь '{path}' не найден")

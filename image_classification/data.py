@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import os
 import random
 from PIL import Image
+from tqdm.notebook import tqdm
 
 # Config
 from config import *
@@ -97,27 +98,38 @@ def show_images(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=None)
 
 
 class ImageDataset(Dataset):
-    def __init__(self, image_paths, transform):
+    def __init__(self, image_paths, transform, load_all=False):
         self.image_paths = image_paths
         self.transform = transform
+        self.load_all = load_all
+
+        if self.load_all:
+            self.images = [
+                self.transform(Image.open(path).convert("RGB")).to(device)
+                for path in tqdm(self.image_paths, desc="Loading images")
+            ]
+        else:
+            self.images = None
 
     def __len__(self):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        # Считываем изображение
-        image_path = self.image_paths[idx]
-        image = Image.open(image_path).convert("RGB")
+        if self.load_all:
+            # Если изображения уже загружены в память
+            return self.images[idx]
+        else:
+            # Считываем изображение с диска
+            image_path = self.image_paths[idx]
+            image = Image.open(image_path).convert("RGB")
+            image = self.transform(image)
+            return image.to(device)
 
-        # Применяем трансформации
-        image = self.transform(image)
-
-        return image.to(device)
 
 
 class ImageClassificationDataset(ImageDataset):
-    def __init__(self, image_paths, labels, transform):
-        super().__init__(image_paths, transform)
+    def __init__(self, image_paths, labels, transform, load_all=False):
+        super().__init__(image_paths, transform, load_all)
         self.labels = labels
 
     def __getitem__(self, idx):
