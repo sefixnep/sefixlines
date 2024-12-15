@@ -21,23 +21,11 @@ from classification.data import *
 
 class Classifier(nn.Module):
     def __init__(self, model, name='Model', optimizer=None, scheduler=None,
-                 loss_fn=None, metric=None, model_dir=None, exist_ok=False):
+                 loss_fn=None, metric=None, model_dir=None, exist_ok=True):
         super().__init__()
 
         # Название модели
         self.name = name
-
-        if model_dir is None:
-            model_dir = f"./models/{name}"
-        self.model_dir = model_dir
-
-        # Путь для сохранения модели
-        if os.path.exists(model_dir):
-            assert exist_ok, "Папка с моделью уже занята"
-            shutil.rmtree(model_dir)
-
-        os.makedirs(self.model_dir)
-        os.makedirs(f"{self.model_dir}/weights")
 
         # Оптимизатор
         if optimizer is None:
@@ -72,6 +60,25 @@ class Classifier(nn.Module):
 
         # Флаг для остановки обучения
         self.stop_fiting = False
+
+        if model_dir is None:
+            model_dir = f"./models/{name}"
+        self.model_dir = model_dir
+
+        # Путь для сохранения модели
+        if os.path.exists(model_dir):
+            if exist_ok:
+                results = pd.read_csv(f"{self.model_dir}/results.csv")
+
+                self.__lr_history = results['lr'].tolist()
+                self.__train_loss_history, self.__valid_loss_history = results['train_loss'].tolist(), results['valid_loss'].tolist()
+                self.__train_score_history, self.__valid_score_history = results['train_score'].tolist(), results['valid_score'].tolist()
+
+                self.load("last")
+            else:
+                shutil.rmtree(model_dir)
+
+        os.makedirs(f"{self.model_dir}/weights", exist_ok=True)
 
     def forward(self, x):
         return self.__model(x)
