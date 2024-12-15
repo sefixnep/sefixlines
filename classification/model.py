@@ -238,15 +238,6 @@ class Classifier(nn.Module):
                 "valid_score": self.__valid_score_history,
             }).to_csv(f"{self.model_dir}/results.csv", index=False)
 
-            # Визуализация истории
-            if len(self.__train_loss_history) > 1:
-                if visualize:
-                    self.plot_stats()
-
-                print("Best:")
-                print(f"Loss - {self.best_loss:.4f} ({self.best_loss_epoch} epoch)")
-                print(f"Score - {self.best_score:.4f} ({self.best_score_epoch} epoch)\n")
-
             # Сохранение модели
             # - Last
             self.save_model("last")
@@ -269,6 +260,15 @@ class Classifier(nn.Module):
             # - Epoch
             if save_period is not None and epoch % save_period == 0:
                 self.save_model(epoch)
+
+            # Визуализация истории
+            if len(self.__train_loss_history) > 1:
+                if visualize:
+                    self.plot_stats()
+
+                print("Best:")
+                print(f"Loss - {self.best_loss:.4f} ({self.best_loss_epoch} epoch)")
+                print(f"Score - {self.best_score:.4f} ({self.best_score_epoch} epoch)\n")
 
             # Делаем шаг планировщиком
             if self.__scheduler is not None:
