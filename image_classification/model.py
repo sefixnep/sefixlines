@@ -19,7 +19,7 @@ from IPython.display import clear_output
 from image_classification.data import *
 
 
-class ImageClassifier(nn.Module):
+class Classifier(nn.Module):
     def __init__(self, model, name='Model', optimizer=None, scheduler=None,
                  loss_fn=None, metric=None, model_dir=None, exist_ok=False):
         super().__init__()
@@ -84,14 +84,14 @@ class ImageClassifier(nn.Module):
             self.__model.eval()
         else:
             raise ValueError("Mode должен быть 'train' или 'eval'.")
+        
+        # Отключаем градиенты в режиме оценки
+        torch.set_grad_enabled(mode == 'train')
 
         # Переменные для подсчета
         count = 0
         total_loss = 0
         total_score = 0
-
-        # Отключаем градиенты в режиме оценки
-        torch.set_grad_enabled(mode == 'train')
 
         # Название для tqdm
         progress_desc = 'Training' if mode == 'train' else 'Evaluating'
@@ -213,15 +213,6 @@ class ImageClassifier(nn.Module):
             print(f"Score: {self.__metric.__name__}")
             print(f" - Train: {train_score:.4f}\n - Valid: {valid_score:.4f}\n")
 
-            # Визуализация результатов после второй эпохи
-            if len(self.__train_loss_history):
-                if visualize:
-                    self.plot_stats()
-
-                print("Best:")
-                print(f"Loss - {self.best_loss:.4f} ({self.best_loss_epoch} epoch)")
-                print(f"Score - {self.best_score:.4f} ({self.best_score_epoch} epoch)\n")
-
             # Сохранение истории
             self.__lr_history.append(self.lr)
             self.__train_loss_history.append(train_loss)
@@ -237,6 +228,15 @@ class ImageClassifier(nn.Module):
                 "train_score": self.__train_score_history,
                 "valid_score": self.__valid_score_history,
             }).to_csv(f"{self.model_dir}/results.csv", index=False)
+
+            # Визуализация истории
+            if len(self.__train_loss_history) > 1:
+                if visualize:
+                    self.plot_stats()
+
+                print("Best:")
+                print(f"Loss - {self.best_loss:.4f} ({self.best_loss_epoch} epoch)")
+                print(f"Score - {self.best_score:.4f} ({self.best_score_epoch} epoch)\n")
 
             # Сохранение модели
             # - Last
@@ -278,13 +278,13 @@ class ImageClassifier(nn.Module):
             self.load()
 
     @torch.inference_mode()
-    def predict_proba(self, inputs, batch_size=50, progress_bar=True):
+    def predict_proba(self, inputs, batch_size=10, progress_bar=True):
         # Обработка одного изображения
         if isinstance(inputs, torch.Tensor) and inputs.dim() == 3:
             return self.__model(inputs.unsqueeze(0).to(device))[0].tolist()
 
         # Определяем, является ли входной списоком или датасетом
-        if isinstance(inputs, (list, ImageDataset)):
+        if isinstance(inputs, (list, Dataset)):
             predictions = []
             data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False)
 
@@ -303,7 +303,7 @@ class ImageClassifier(nn.Module):
 
     def predict(self, inputs, *args, **kwargs):
         return np.argmax(self.predict_proba(inputs, *args, **kwargs), axis=1
-            if isinstance(inputs, (list, ImageDataset)) else None).tolist()
+            if isinstance(inputs, (list, Dataset)) else None).tolist()
 
     def save_model(self, name="best"):
         if isinstance(name, int) or name.isdigit():

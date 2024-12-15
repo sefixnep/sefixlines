@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 # Остальное
 import os
 import random
-from PIL import Image
 from tqdm.notebook import tqdm
 
 # Config
@@ -97,39 +96,32 @@ def show_images(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=None)
     plt.show()
 
 
-class ImageDataset(Dataset):
-    def __init__(self, image_paths, transform, load_all=False):
-        self.image_paths = image_paths
+class Dataset(Dataset):
+    def __init__(self, data, transform, transform_all=False):
+        self.data = data
         self.transform = transform
-        self.load_all = load_all
 
-        if self.load_all:
-            self.images = [
-                self.transform(Image.open(path).convert("RGB")).to(device)
-                for path in tqdm(self.image_paths, desc="Loading images")
+        if transform_all:
+            self.transformed_data = [
+                self.transform(path)
+                for path in tqdm(self.data, desc="Transforming data")
             ]
         else:
-            self.images = None
+            self.transformed_data = None
 
     def __len__(self):
-        return len(self.image_paths)
+        return len(self.data)
 
     def __getitem__(self, idx):
-        if self.load_all:
-            # Если изображения уже загружены в память
-            return self.images[idx]
-        else:
-            # Считываем изображение с диска
-            image_path = self.image_paths[idx]
-            image = Image.open(image_path).convert("RGB")
-            image = self.transform(image)
-            return image.to(device)
+        if self.transformed_data is None:
+            return self.transform(self.data[idx])
+        
+        return self.transformed_data[idx]
 
 
-
-class ImageClassificationDataset(ImageDataset):
-    def __init__(self, image_paths, labels, transform, load_all=False):
-        super().__init__(image_paths, transform, load_all)
+class ClassificationDataset(Dataset):
+    def __init__(self, data, labels, transform, transform_all=False):
+        super().__init__(data, transform, transform_all)
         self.labels = labels
 
     def __getitem__(self, idx):
