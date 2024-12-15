@@ -3,7 +3,6 @@ import numpy as np
 
 # Torch
 import torch
-from torch.utils.data import Dataset
 
 # Визуализация
 import matplotlib.pyplot as plt
@@ -96,7 +95,7 @@ def show_images(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=None)
     plt.show()
 
 
-class Dataset(Dataset):
+class Dataset(torch.utils.data.Dataset):
     def __init__(self, data, transform, transform_all=False):
         self.data = data
         self.transform = transform

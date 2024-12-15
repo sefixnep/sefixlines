@@ -283,23 +283,22 @@ class Classifier(nn.Module):
         if isinstance(inputs, torch.Tensor) and inputs.dim() == 3:
             return self.__model(inputs.unsqueeze(0).to(device))[0].tolist()
 
-        # Определяем, является ли входной списоком или датасетом
-        if isinstance(inputs, (list, Dataset)):
-            predictions = []
-            data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False)
-
-            if progress_bar:
-                data_loader = tqdm(data_loader, desc="Predicting")
-
-            # Итерация по батчам
-            for batch in data_loader:
-                batch_predictions = self.__model(batch.to(device))
-                predictions.append(batch_predictions)
-
-            return torch.cat(predictions, dim=0).tolist()
-
         # Если формат данных неизвестен
-        raise ValueError("Unsupported input type. Expected single tensor, list of tensors, or Dataset.")
+        if not isinstance(inputs, Dataset):
+            raise ValueError("Unsupported input type. Expected single tensor, list of tensors, or Dataset.")
+        
+        predictions = []
+        data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False)
+
+        if progress_bar:
+            data_loader = tqdm(data_loader, desc="Predicting")
+
+        # Итерация по батчам
+        for batch in data_loader:
+            batch_predictions = self.__model(batch.to(device))
+            predictions.append(batch_predictions)
+
+        return torch.cat(predictions, dim=0).tolist()
 
     def predict(self, inputs, *args, **kwargs):
         return np.argmax(self.predict_proba(inputs, *args, **kwargs), axis=1
