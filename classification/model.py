@@ -16,7 +16,7 @@ import shutil
 from IPython.display import clear_output
 
 # Configuration
-from image_classification.data import *
+from classification.data import *
 
 
 class Classifier(nn.Module):
