@@ -243,8 +243,8 @@ class Classifier(nn.Module):
                     "epoch": range(1, len(self.__train_loss_history) + 1),
                     "lr": self.__lr_history,
                     "train_loss": self.__train_loss_history,
-                    "valid_loss": self.__valid_loss_history,
                     "train_score": self.__train_score_history,
+                    "valid_loss": self.__valid_loss_history,
                     "valid_score": self.__valid_score_history,
                 }).to_csv(f"{self.model_dir}/results.csv", index=False)
 
@@ -275,9 +275,9 @@ class Classifier(nn.Module):
                 if self.__scheduler is not None:
                     try:
                         if isinstance(self.__scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                            self.__scheduler.step(valid_loss if min_loss else valid_score, epoch=epoch)
+                            self.__scheduler.step(valid_loss if min_loss else valid_score)
                         else:
-                            self.__scheduler.step(epoch=epoch)
+                            self.__scheduler.step()
                     except TypeError:
                         # Планировщик не требует аргумента, пропускаем
                         pass
