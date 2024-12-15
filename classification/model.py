@@ -67,8 +67,10 @@ class Classifier(nn.Module):
 
         # Путь для сохранения модели
         if os.path.exists(model_dir):
-            if exist_ok:
-                results = pd.read_csv(f"{self.model_dir}/results.csv")
+            results_path = f"{self.model_dir}/results.csv"
+
+            if exist_ok and os.path.exists(results_path):
+                results = pd.read_csv(results_path)
 
                 self.__lr_history = results['lr'].tolist()
                 self.__train_loss_history, self.__valid_loss_history = results['train_loss'].tolist(), results['valid_loss'].tolist()
