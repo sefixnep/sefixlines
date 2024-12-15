@@ -204,9 +204,11 @@ class Classifier(nn.Module):
 
         start_epoch = len(self.__train_loss_history) + 1
 
-        for epoch in range(start_epoch, start_epoch + num_epochs):
+        assert num_epochs >= start_epoch, f"Модель уже обучена на {start_epoch - 1} эпох" 
+
+        for epoch in range(start_epoch, num_epochs + 1):
             # Объявление о новой эпохе
-            print(f"\nEpoch: {epoch}/{start_epoch + num_epochs - 1}\n")
+            print(f"\nEpoch: {epoch}/{num_epochs}\n")
 
             # Обучение на тренировочных данных
             train_loss, train_score = self.run_epoch(train_loader, mode='train')
@@ -217,7 +219,7 @@ class Classifier(nn.Module):
             # Очищаем вывод для обновления информации
             clear_output()
 
-            print(f"Epoch: {epoch}/{start_epoch + num_epochs - 1}\n")
+            print(f"Epoch: {epoch}/{num_epochs}\n")
 
             print(f"Learning Rate: {self.lr}\n")
 
@@ -269,7 +271,15 @@ class Classifier(nn.Module):
 
                 # Делаем шаг планировщиком
                 if self.__scheduler is not None:
-                    self.__scheduler.step()
+                    try:
+                        if isinstance(self.__scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                            self.__scheduler.step(valid_loss if min_loss else valid_score, epoch=epoch)
+                        else:
+                            self.__scheduler.step(epoch=epoch)
+                    except TypeError:
+                        # Планировщик не требует аргумента, пропускаем
+                        pass
+                    
                     self.lr = self.__scheduler.get_last_lr()[0]
 
             # Визуализация истории
