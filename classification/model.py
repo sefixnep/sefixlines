@@ -123,6 +123,7 @@ class Classifier(nn.Module):
                 # Обратное распространение и шаг оптимизатора только в режиме тренировки
                 if mode == 'train':
                     loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.__model.parameters(), 1.0)
                     self.__optimizer.step()
 
                 labels_true = labels.cpu().numpy()
