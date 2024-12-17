@@ -107,6 +107,9 @@ class Classifier(nn.Module):
         total_loss = 0
         total_score = 0
 
+        labels_true = list()
+        labels_pred = list()
+
         # Название для tqdm
         progress_desc = 'Training' if mode == 'train' else 'Evaluating'
         progress_bar = tqdm(data_loader, desc=progress_desc)
@@ -126,22 +129,30 @@ class Classifier(nn.Module):
                     torch.nn.utils.clip_grad_norm_(self.__model.parameters(), 1.0)
                     self.__optimizer.step()
 
-                labels_true = labels.cpu().numpy()
-                labels_pred = output.argmax(dim=1).cpu().numpy()
+                    if isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
+                        self.__scheduler.step()   # Делаем шаг для OneCycleLR
+                        self.lr = self.__scheduler.get_last_lr()[0]
+
+                labels_true.extend(labels.tolist())
+                labels_pred.extend(output.argmax(dim=1).tolist())
 
                 # Подсчет потерь и метрик
                 total_loss += loss.item()
-                total_score += self.__metric(labels_true, labels_pred)
-
                 count += 1
 
                 # Обновляем описание tqdm с текущими значениями
                 current_loss = total_loss / count
-                current_score = total_score / count
-                progress_bar.set_postfix(
-                    loss=f"{current_loss:.4f}",
-                    **{self.__metric.__name__: f"{current_score:.4f}"}
-                )
+                total_score = self.__metric(labels_true, labels_pred)
+
+                display = {
+                    self.__loss_fn.__class__.__name__: f"{current_loss:.4f}",
+                    self.__metric.__name__: f"{total_score:.4f}"
+                }
+
+                if isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
+                    display['LR'] = self.lr
+
+                progress_bar.set_postfix(**display)
 
         except KeyboardInterrupt:
             self.stop_fiting = True
@@ -151,7 +162,7 @@ class Classifier(nn.Module):
                 return 0, 0
 
         # Возвращаем средний loss и метрику за эпоху
-        return total_loss / count, total_score / count
+        return total_loss / count, total_score
 
     def plot_stats(self):
         # Настраиваем график
@@ -275,9 +286,12 @@ class Classifier(nn.Module):
                 # Делаем шаг планировщиком
                 if self.__scheduler is not None:
                     try:
-                        if isinstance(self.__scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                        if isinstance(self.__scheduler, optim.lr_scheduler.ReduceLROnPlateau):
                             self.__scheduler.step(valid_loss if min_loss else valid_score)
-                        else:
+
+                            if self.__scheduler.get_last_lr()[0] != self.lr:
+                                self.load()
+                        elif not isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
                             self.__scheduler.step()
                     except TypeError:
                         # Планировщик не требует аргумента, пропускаем
