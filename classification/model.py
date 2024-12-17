@@ -284,18 +284,14 @@ class Classifier(nn.Module):
                     self.save_model(epoch)
 
                 # Делаем шаг планировщиком
-                if self.__scheduler is not None:
-                    try:
-                        if isinstance(self.__scheduler, optim.lr_scheduler.ReduceLROnPlateau):
-                            self.__scheduler.step(valid_loss if min_loss else valid_score)
+                if self.__scheduler is not None and not isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
+                    if isinstance(self.__scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+                        self.__scheduler.step(valid_loss if min_loss else valid_score)
 
-                            if self.__scheduler.get_last_lr()[0] != self.lr:
-                                self.load()
-                        elif not isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
-                            self.__scheduler.step()
-                    except TypeError:
-                        # Планировщик не требует аргумента, пропускаем
-                        pass
+                        if self.__scheduler.get_last_lr()[0] != self.lr:
+                            self.load()
+                    else:
+                        self.__scheduler.step()
                     
                     self.lr = self.__scheduler.get_last_lr()[0]
 
