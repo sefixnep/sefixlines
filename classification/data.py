@@ -100,22 +100,21 @@ class Dataset(torch.utils.data.Dataset):
         self.data = data
         self.transform = transform
 
+        self.transformed_data = None
         if transform_all:
             self.transformed_data = [
-                self.transform(path)
-                for path in tqdm(self.data, desc="Transforming data")
+                self[idx]
+                for idx in tqdm(range(len(self)), desc="Transforming data")
             ]
-        else:
-            self.transformed_data = None
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        if self.transformed_data is None:
-            return self.transform(self.data[idx])
-        
-        return self.transformed_data[idx]
+        if self.transformed_data is not None:
+            return self.transformed_data[idx]
+            
+        return self.transform(self.data[idx])
 
 
 class ClassificationDataset(Dataset):
