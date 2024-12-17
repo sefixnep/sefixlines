@@ -149,8 +149,8 @@ class Classifier(nn.Module):
                     self.__metric.__name__: f"{total_score:.4f}"
                 }
 
-                if isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
-                    display['LR'] = self.lr
+                if mode == 'train' and isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
+                    display['lr'] = round(self.lr, 10)
 
                 progress_bar.set_postfix(**display)
 
@@ -235,7 +235,7 @@ class Classifier(nn.Module):
 
             print(f"Epoch: {epoch}/{num_epochs}\n")
 
-            print(f"Learning Rate: {self.lr}\n")
+            print(f"Learning Rate: {round(self.lr, 10)}\n")
 
             print(f'Loss: {self.__loss_fn.__class__.__name__}')
             print(f" - Train: {train_loss:.4f}\n - Valid: {valid_loss:.4f}\n")
