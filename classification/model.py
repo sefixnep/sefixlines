@@ -324,7 +324,7 @@ class Classifier(nn.Module):
 
         # Если формат данных неизвестен
         if not isinstance(inputs, Dataset):
-            raise ValueError("Unsupported input type. Expected single tensor, list of tensors, or Dataset.")
+            raise ValueError("Unsupported input type. Expected Dataset.")
         
         predictions = []
         data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False)
