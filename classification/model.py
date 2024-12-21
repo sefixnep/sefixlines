@@ -165,50 +165,45 @@ class Classifier(nn.Module):
         return total_loss / count, total_score
 
     def plot_stats(self):
-        # Настраиваем график
-        plt.figure(figsize=(16, 8))
+        # Создаем объект фигуры
+        fig, axes = plt.subplots(1, 2, figsize=(16, 8))
         epochs = range(1, len(self.__train_loss_history) + 1)
 
         # Визуализация потерь
-        plt.subplot(1, 2, 1)
-
-        sns.lineplot(x=epochs, y=self.__train_loss_history, label='Train Loss', linestyle='--', marker='o',
-                     color='#1f77b4',
-                     linewidth=3)
-        sns.lineplot(x=epochs, y=self.__valid_loss_history, label='Valid Loss', linestyle='-', marker='o',
-                     color='#bc4b51',
-                     linewidth=3)
-        plt.plot(epochs, self.__valid_loss_history, 'o', markerfacecolor='none', markeredgecolor='#bc4b51', markersize=7,
-                 linewidth=2)
-
-        plt.title(f'{self.name} - {self.__loss_fn.__class__.__name__}')
-        plt.xlabel('Epochs')
-        plt.legend()
-        plt.gca().set_ylabel('')
-        plt.xticks(epochs)  # Устанавливаем натуральные значения по оси x
-        plt.xlim(1, len(self.__train_loss_history))  # Ограничиваем ось x от 1 до максимального значения
+        sns.lineplot(ax=axes[0], x=epochs, y=self.__train_loss_history, label='Train Loss', linestyle='--', marker='o',
+                    color='#1f77b4', linewidth=3)
+        sns.lineplot(ax=axes[0], x=epochs, y=self.__valid_loss_history, label='Valid Loss', linestyle='-', marker='o',
+                    color='#bc4b51', linewidth=3)
+        axes[0].plot(epochs, self.__valid_loss_history, 'o', markerfacecolor='none', markeredgecolor='#bc4b51', markersize=7,
+                    linewidth=2)
+        axes[0].set_title(f'{self.name} - {self.__loss_fn.__class__.__name__}')
+        axes[0].set_xlabel('Epochs')
+        axes[0].legend()
+        axes[0].set_ylabel('')
+        axes[0].set_xticks(epochs)
+        axes[0].set_xlim(1, len(self.__train_loss_history))
 
         # Визуализация кастомной метрики
-        plt.subplot(1, 2, 2)
+        sns.lineplot(ax=axes[1], x=epochs, y=self.__train_score_history, label=f'Train {self.__metric.__name__}', linestyle='--',
+                    marker='o', linewidth=3)
+        sns.lineplot(ax=axes[1], x=epochs, y=self.__valid_score_history, label=f'Valid {self.__metric.__name__}', linestyle='-',
+                    marker='o', linewidth=3)
+        axes[1].plot(epochs, self.__valid_score_history, 'o', markerfacecolor='none', markeredgecolor='#DD8452', markersize=7,
+                    linewidth=2)
+        axes[1].set_title(f'{self.name} - {self.__metric.__name__}')
+        axes[1].set_xlabel('Epochs')
+        axes[1].legend()
+        axes[1].set_ylabel('')
+        axes[1].set_xticks(epochs)
+        axes[1].set_xlim(1, len(self.__train_score_history))
 
-        sns.lineplot(x=epochs, y=self.__train_score_history, label=f'Train {self.__metric.__name__}', linestyle='--',
-                     marker='o',
-                     linewidth=3)
-        sns.lineplot(x=epochs, y=self.__valid_score_history, label=f'Valid {self.__metric.__name__}', linestyle='-',
-                     marker='o',
-                     linewidth=3)
-        plt.plot(epochs, self.__valid_score_history, 'o', markerfacecolor='none', markeredgecolor='#DD8452', markersize=7,
-                 linewidth=2)
+        fig.tight_layout()
 
-        plt.title(f'{self.name} - {self.__metric.__name__}')
-        plt.xlabel('Epochs')
-        plt.legend()
-        plt.gca().set_ylabel('')
-        plt.xticks(epochs)  # Устанавливаем натуральные значения по оси x
-        plt.xlim(1, len(self.__train_score_history))  # Ограничиваем ось x от 1 до максимального значения
-
-        plt.tight_layout()
+        # Отображаем график
         plt.show()
+
+        # Возвращаем объект фигуры
+        return fig
 
     def fit(self, train_loader, valid_loader, num_epochs,
             min_loss=False, visualize=True, use_best_model=True, save_period=None):
@@ -298,7 +293,9 @@ class Classifier(nn.Module):
             # Визуализация истории
             if len(self.__train_loss_history) > 1:
                 if visualize:
-                    self.plot_stats()
+                    # Сохранение графика в формате PNG
+                    fig = self.plot_stats()
+                    fig.savefig(f'{self.model_dir}/fiting_plot.png', dpi=300)
 
                 print("Best:")
                 print(f"Loss - {self.best_loss:.4f} ({self.best_loss_epoch} epoch)")
