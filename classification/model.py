@@ -113,6 +113,7 @@ class Classifier(nn.Module):
         # Название для tqdm
         progress_desc = 'Training' if mode == 'train' else 'Evaluating'
         progress_bar = tqdm(data_loader, desc=progress_desc)
+        display = dict()
 
         try:
             for data, labels in progress_bar:
@@ -132,6 +133,7 @@ class Classifier(nn.Module):
                     if isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
                         self.__scheduler.step()   # Делаем шаг для OneCycleLR
                         self.lr = self.__scheduler.get_last_lr()[0]
+                        display['lr'] = round(self.lr, 10)
 
                 labels_true.extend(labels.tolist())
                 labels_pred.extend(output.argmax(dim=1).tolist())
@@ -144,13 +146,10 @@ class Classifier(nn.Module):
                 current_loss = total_loss / count
                 total_score = self.__metric(labels_true, labels_pred)
 
-                display = {
+                display.update({
                     self.__loss_fn.__class__.__name__: f"{current_loss:.4f}",
                     self.__metric.__name__: f"{total_score:.4f}"
-                }
-
-                if mode == 'train' and isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
-                    display['lr'] = round(self.lr, 10)
+                })
 
                 progress_bar.set_postfix(**display)
 
