@@ -338,18 +338,26 @@ class Classifier(nn.Module):
         return np.argmax(self.predict_proba(inputs, *args, **kwargs), axis=1
             if isinstance(inputs, (list, Dataset)) else None).tolist()
 
-    def save_model(self, name="best"):
-        if isinstance(name, int) or name.isdigit():
-            name = f"epoch_{name}"
+    def save_model(self, name="best", is_path=False):
+        if not is_path:
+            if isinstance(name, int) or name.isdigit():
+                name = f"epoch_{name}"
 
-        path = f"{self.model_dir}/weights/{name}.pth"
+            path = f"{self.model_dir}/weights/{name}.pt"
+        else:
+            path = name
+        
         torch.save(self.__model.state_dict(), path)
 
-    def load(self, name="best"):
-        if isinstance(name, int) or name.isdigit():
-            name = f"epoch_{name}"
+    def load(self, name="best", is_path=False):
+        if not is_path:
+            if isinstance(name, int) or name.isdigit():
+                name = f"epoch_{name}"
 
-        path = f"{self.model_dir}/weights/{name}.pth"
+            path = f"{self.model_dir}/weights/{name}.pt"
+        else:
+            path = name
+
         if os.path.exists(path):
             # Переводим модель в режим оценки
             self.__model.eval()
