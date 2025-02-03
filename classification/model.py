@@ -105,7 +105,6 @@ class Classifier(nn.Module):
         # Переменные для подсчета
         count = 0
         total_loss = 0
-        total_score = 0
 
         labels_true = list()
         labels_pred = list()
