@@ -27,6 +27,9 @@ class Classifier(nn.Module):
         # Название модели
         self.name = name
 
+        # Устройство для обучения
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
         # Оптимизатор
         if optimizer is None:
             optimizer = optim.Adam(model.parameters(), lr=3e-4)
@@ -47,7 +50,7 @@ class Classifier(nn.Module):
         self.__metric = metric
 
         # Переносим модель на устройство (CPU или GPU)
-        self.__model = model.to(device)
+        self.__model = model.to(self.device)
 
         # Инициализируем историю
         self.__lr_history = []
@@ -116,6 +119,8 @@ class Classifier(nn.Module):
 
         try:
             for data, labels in progress_bar:
+                data, labels = data.to(self.device), labels.to(self.device)
+
                 if mode == 'train':
                     self.__optimizer.zero_grad()
 
@@ -314,11 +319,11 @@ class Classifier(nn.Module):
     @torch.inference_mode()
     def predict_proba(self, inputs, batch_size=10, progress_bar=True):
         # Обработка одного изображения
-        if isinstance(inputs, torch.Tensor) and inputs.dim() == 3:
-            return self.__model(inputs.unsqueeze(0).to(device))[0].tolist()
+        if isinstance(inputs, torch.Tensor):
+            return self.__model(inputs.unsqueeze(0).to(self.device))[0].tolist()
 
         # Если формат данных неизвестен
-        if not isinstance(inputs, Dataset):
+        if not isinstance(inputs, torch.utils.data.Dataset):
             raise ValueError("Unsupported input type. Expected Dataset.")
         
         predictions = []
@@ -329,14 +334,14 @@ class Classifier(nn.Module):
 
         # Итерация по батчам
         for batch in data_loader:
-            batch_predictions = self.__model(batch.to(device))
+            batch_predictions = self.__model(batch.to(self.device))
             predictions.append(batch_predictions)
 
         return torch.cat(predictions, dim=0).tolist()
 
     def predict(self, inputs, *args, **kwargs):
         return np.argmax(self.predict_proba(inputs, *args, **kwargs), axis=1
-            if isinstance(inputs, (list, Dataset)) else None).tolist()
+            if isinstance(inputs, (list, torch.utils.data.Dataset)) else None).tolist()
 
     def save_model(self, name="best", is_path=False):
         if not is_path:
@@ -363,7 +368,7 @@ class Classifier(nn.Module):
             self.__model.eval()
 
             # Загружаем веса и применяем их к модели
-            state_dict = torch.load(path, map_location=device, weights_only=True)
+            state_dict = torch.load(path, map_location=self.device, weights_only=True)
             self.__model.load_state_dict(state_dict)
         else:
             print(f"Не получилось загрузить модель, путь '{path}' не найден")

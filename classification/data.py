@@ -12,9 +12,6 @@ import os
 import random
 from tqdm.notebook import tqdm
 
-# Config
-from config import *
-
 
 def set_all_seeds(seed=42):
     # Устанавливаем seed для встроенного генератора Python
@@ -33,7 +30,7 @@ def set_all_seeds(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
-def denormalize(image_tensor):
+def denormalize(image_tensor, mean, std):
     # Преобразуем mean и std в тензоры и переносим их на то же устройство, что и image
     tensor_mean = torch.tensor(mean).view(-1, 1, 1).to(image_tensor.device)
     tensor_std = torch.tensor(std).view(-1, 1, 1).to(image_tensor.device)
@@ -45,7 +42,7 @@ def denormalize(image_tensor):
     return (denormalize_image * 255).clamp(0, 255).byte()
 
 
-def show_images(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=None):
+def show_classification(dataset, mean, std, amount=3, figsize=(4, 4), classes=None, n_classes=None):
     # Получаем метки из dataset
     labels = np.array(dataset.labels)
 
@@ -63,26 +60,26 @@ def show_images(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=None)
     if cols == 1:
         axes = np.expand_dims(axes, axis=1)
 
-    shown_indices = {cls: 0 for cls in unique_classes}  # Отслеживаем, сколько картинок каждого класса показано
+    shown_indices = dict.fromkeys(unique_classes, 0)  # Отслеживаем, сколько картинок каждого класса показано
 
     for row in range(rows):
-        for col, cls in enumerate(unique_classes):
+        for col, class_id in enumerate(unique_classes):
             # Найдем индексы всех изображений текущего класса
-            class_indices = np.where(labels == cls)[0]
+            class_indices = np.where(labels == class_id)[0]
 
             # Проверяем, сколько уже показано, и берем следующий индекс
-            idx = class_indices[shown_indices[cls] % len(class_indices)]  # Циклично берем следующий индекс
-            shown_indices[cls] += 1  # Увеличиваем счетчик для текущего класса
+            idx = class_indices[shown_indices[class_id] % len(class_indices)]  # Циклично берем следующий индекс
+            shown_indices[class_id] += 1  # Увеличиваем счетчик для текущего класса
 
-            # Загружаем изображение и метку
-            image, label = dataset[idx]
+            # Загружаем изображение
+            image = dataset[idx][0]
 
             # Определяем название класса
-            class_name = f"Class: {cls}" if classes is None else f"Class: {classes[cls]}"
+            class_name = f"Class: {class_id}" if classes is None else f"Class: {classes[class_id]}"
 
             # Отображение изображения
             ax = axes[row][col]
-            ax.imshow(denormalize(image).cpu().numpy().transpose(1, 2, 0))
+            ax.imshow(denormalize(image, mean, std).cpu().numpy().transpose(1, 2, 0))
 
             ax.set_title(class_name, fontsize=10)  # Белый текст для контраста
             ax.axis("off")
@@ -93,37 +90,3 @@ def show_images(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=None)
 
     plt.tight_layout()
     plt.show()
-
-
-class Dataset(torch.utils.data.Dataset):
-    def __init__(self, data, transform, transform_all=False):
-        self.data = data
-        self.transform = transform
-
-        self.transformed_data = None
-        if transform_all:
-            self.transformed_data = [
-                self[idx]
-                for idx in tqdm(range(len(self)), desc="Transforming data")
-            ]
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        if self.transformed_data is not None:
-            return self.transformed_data[idx]
-            
-        return self.transform(self.data[idx])
-
-
-class ClassificationDataset(Dataset):
-    def __init__(self, data, labels, transform, transform_all=False):
-        super().__init__(data, transform, transform_all)
-        self.labels = labels
-
-    def __getitem__(self, idx):
-        # Получаем метку
-        label = self.labels[idx]
-
-        return super().__getitem__(idx), torch.tensor(label, dtype=torch.long).to(device)
