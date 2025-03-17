@@ -118,14 +118,23 @@ class Classifier(nn.Module):
         display = dict()
 
         try:
-            for data, labels in progress_bar:
-                data, labels = data.to(self.device), labels.to(self.device)
+            for batch in progress_bar:
+                args = batch.get('args', list())
+                if 'args' in batch:
+                    batch.pop('args')
+
+                for i in range(len(args)):
+                    args[i] = args[i].to(self.device)
+
+                for key in batch:
+                    batch[key] = batch[key].to(self.device)
+                labels = batch.pop('labels')
 
                 if mode == 'train':
                     self.__optimizer.zero_grad()
 
                 # Прямой проход
-                output = self.__model(data)
+                output = self.__model(*args, **batch)
                 loss = self.__loss_fn(output, labels)
 
                 # Обратное распространение и шаг оптимизатора только в режиме тренировки
@@ -216,7 +225,9 @@ class Classifier(nn.Module):
 
         start_epoch = len(self.__train_loss_history) + 1
 
-        assert num_epochs >= start_epoch, f"Модель уже обучена на {start_epoch - 1} эпох" 
+        if num_epochs < start_epoch:
+            print(f"Модель уже обучена на {start_epoch - 1} эпох")
+            return
 
         for epoch in range(start_epoch, num_epochs + 1):
             # Объявление о новой эпохе
@@ -318,9 +329,22 @@ class Classifier(nn.Module):
 
     @torch.inference_mode()
     def predict_proba(self, inputs, batch_size=10, progress_bar=True):
-        # Обработка одного изображения
-        if isinstance(inputs, torch.Tensor):
-            return self.__model(inputs.unsqueeze(0).to(self.device))[0].tolist()
+        # Обработка одного объекта
+        if isinstance(inputs, dict):
+            if 'labels' in inputs:
+                inputs = {k:v for k,v in inputs.items() if k != 'labels'}
+            
+            args = inputs.get('args', list())
+            if 'args' in inputs:
+                inputs.pop('args')
+            
+            for i in range(len(args)):
+                args[i] = args[i].to(self.device)
+            
+            for key in inputs:
+                inputs[key] = inputs[key].to(self.device)
+                
+            return self.__model(*args, **inputs)[0].tolist()
 
         # Если формат данных неизвестен
         if not isinstance(inputs, torch.utils.data.Dataset):
@@ -334,14 +358,72 @@ class Classifier(nn.Module):
 
         # Итерация по батчам
         for batch in data_loader:
-            batch_predictions = self.__model(batch.to(self.device))
+            if 'labels' in batch:
+                batch.pop('labels')
+                
+            args = batch.get('args', list())
+            if 'args' in batch:
+                batch.pop('args')
+                
+            for i in range(len(args)):
+                args[i] = args[i].to(self.device)
+                
+            for key in batch:
+                batch[key] = batch[key].to(self.device)
+                
+            batch_predictions = self.__model(*args, **batch)
             predictions.append(batch_predictions)
 
         return torch.cat(predictions, dim=0).tolist()
 
-    def predict(self, inputs, *args, **kwargs):
-        return np.argmax(self.predict_proba(inputs, *args, **kwargs), axis=1
-            if isinstance(inputs, (list, torch.utils.data.Dataset)) else None).tolist()
+    @torch.inference_mode()
+    def predict(self, inputs, batch_size=10, progress_bar=True):
+        # Обработка одного объекта
+        if isinstance(inputs, dict):
+            if 'labels' in inputs:
+                inputs = {k:v for k,v in inputs.items() if k != 'labels'}
+            
+            args = inputs.get('args', list())
+            if 'args' in inputs:
+                inputs.pop('args')
+            
+            for i in range(len(args)):
+                args[i] = args[i].to(self.device)
+            
+            for key in inputs:
+                inputs[key] = inputs[key].to(self.device)
+                
+            return np.argmax(self.__model(*args, **inputs)[0].tolist())
+
+        # Если формат данных неизвестен
+        if not isinstance(inputs, torch.utils.data.Dataset):
+            raise ValueError("Unsupported input type. Expected Dataset.")
+        
+        predictions = []
+        data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False)
+
+        if progress_bar:
+            data_loader = tqdm(data_loader, desc="Predicting")
+
+        # Итерация по батчам
+        for batch in data_loader:
+            if 'labels' in batch:
+                batch.pop('labels')
+                
+            args = batch.get('args', list())
+            if 'args' in batch:
+                batch.pop('args')
+                
+            for i in range(len(args)):
+                args[i] = args[i].to(self.device)
+                
+            for key in batch:
+                batch[key] = batch[key].to(self.device)
+                
+            batch_predictions = self.__model(*args, **batch)
+            predictions.extend(np.argmax(batch_predictions.cpu().numpy(), axis=1).tolist())
+
+        return predictions
 
     def save_model(self, name="best", is_path=False):
         if not is_path:

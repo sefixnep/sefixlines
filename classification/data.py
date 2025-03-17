@@ -72,7 +72,7 @@ def show_classification(dataset, mean, std, amount=3, figsize=(4, 4), classes=No
             shown_indices[class_id] += 1  # Увеличиваем счетчик для текущего класса
 
             # Загружаем изображение
-            image = dataset[idx][0]
+            image = dataset[idx]['args'][0]
 
             # Определяем название класса
             class_name = f"Class: {class_id}" if classes is None else f"Class: {classes[class_id]}"
