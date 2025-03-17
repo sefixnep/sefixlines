@@ -108,9 +108,7 @@ class Classifier(nn.Module):
         # Переменные для подсчета
         count = 0
         total_loss = 0
-
-        labels_true = list()
-        labels_pred = list()
+        total_score = 0
 
         # Название для tqdm
         progress_desc = 'Training' if mode == 'train' else 'Evaluating'
@@ -148,20 +146,18 @@ class Classifier(nn.Module):
                         self.lr = self.__scheduler.get_last_lr()[0]
                         display['lr'] = round(self.lr, 10)
 
-                labels_true.extend(labels.tolist())
-                labels_pred.extend(output.argmax(dim=1).tolist())
-
                 # Подсчет потерь и метрик
                 total_loss += loss.item()
+                total_score += self.__metric(labels.cpu().numpy(), output.argmax(dim=1).cpu().numpy())
                 count += 1
 
                 # Обновляем описание tqdm с текущими значениями
                 current_loss = total_loss / count
-                total_score = self.__metric(labels_true, labels_pred)
+                current_score = total_score / count
 
                 display.update({
                     self.__loss_fn.__class__.__name__: f"{current_loss:.4f}",
-                    self.__metric.__name__: f"{total_score:.4f}"
+                    self.__metric.__name__: f"{current_score:.4f}"
                 })
 
                 progress_bar.set_postfix(**display)
@@ -174,7 +170,7 @@ class Classifier(nn.Module):
                 return 0, 0
 
         # Возвращаем средний loss и метрику за эпоху
-        return total_loss / count, total_score
+        return total_loss / count, total_score / count
 
     def plot_stats(self):
         # Создаем объект фигуры
