@@ -1,0 +1,22 @@
+# Основные зависимости
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.21.0
+pandas>=1.3.0
+matplotlib>=3.4.0
+seaborn>=0.11.0
+tqdm>=4.62.0
+scikit-learn>=1.0.0
+
+# Для работы с Jupyter
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# Для работы с изображениями
+Pillow>=8.3.0
+
+# Для работы с трансформерами (опционально)
+transformers>=4.30.0
+
+# Для поиска оптимального learning rate
+torch-lr-finder>=0.2.1 
