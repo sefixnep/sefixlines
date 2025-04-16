@@ -17,7 +17,7 @@
 ## ⚙️ Установка
 
 ```bash
-git clone https://github.com/Sefixnep/Torch-Classification.git
+git clone https://github.com/Sefixnep/sefixnep_classification.git
 cd Torch-Classification
 pip install -r requirements.txt
 ```
