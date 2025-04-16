@@ -18,7 +18,7 @@
 
 ```bash
 git clone https://github.com/Sefixnep/sefixnep_classification.git
-cd Torch-Classification
+cd sefixnep_classification
 pip install -r requirements.txt
 ```
 
