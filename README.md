@@ -75,7 +75,7 @@ model_wrapped.fit(train_loader, valid_loader, epochs=10)
 ### 5. 🧪 Предсказания
 
 ```python
-test_dir = "path/to/test/images"
+test_dir = ""
 test_image_paths = [f"{test_dir}/{name}" for name in os.listdir(test_dir)]
 test_set = Dataset(test_image_paths, transform)
 
