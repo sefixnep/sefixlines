@@ -97,4 +97,4 @@ predict_class_names = [classes[class_id] for class_id in predict_class_id]
 
 ---
 
-> ❗ P.S. Всё кастомизируемо.
+> ❗ P.S. Всё кастомизируемо. Нашли баг - пишите мне в [telegram](https://t.me/sefixnep)
