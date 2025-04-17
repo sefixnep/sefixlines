@@ -110,9 +110,9 @@ class Classifier(nn.Module):
         count = 0
         total_loss = 0
 
-        maxlen_labels = 1000
-        y_true = deque(maxlen=maxlen_labels)
-        y_pred = deque(maxlen=maxlen_labels)
+        y_maxlen = 1000
+        y_true = deque(maxlen=y_maxlen)
+        y_pred = deque(maxlen=y_maxlen)
 
         # Название для tqdm
         progress_desc = 'Training' if mode == 'train' else 'Evaluating'
@@ -331,7 +331,9 @@ class Classifier(nn.Module):
             self.load()
 
     @torch.inference_mode()
-    def predict_proba(self, inputs, batch_size=10, num_workers=4, progress_bar=True):
+    def predict_proba(self, inputs, batch_size=10, num_workers=0, progress_bar=True):
+        softmax = nn.Softmax(1)
+
         # Обработка одного объекта
         if isinstance(inputs, dict):
             if 'labels' in inputs:
@@ -342,12 +344,12 @@ class Classifier(nn.Module):
                 inputs.pop('args')
             
             for i in range(len(args)):
-                args[i] = args[i].to(self.device)
+                args[i] = args[i].to(self.device).unsqueeze(0)
             
             for key in inputs:
-                inputs[key] = inputs[key].to(self.device)
+                inputs[key] = inputs[key].to(self.device).unsqueeze(0)
                 
-            return self.__model(*args, **inputs)[0].tolist()
+            return softmax(self.__model(*args, **inputs)).squeeze().cpu().numpy()
 
         # Если формат данных неизвестен
         if not isinstance(inputs, torch.utils.data.Dataset):
@@ -377,10 +379,10 @@ class Classifier(nn.Module):
             batch_predictions = self.__model(*args, **batch)
             predictions.append(batch_predictions)
 
-        return torch.cat(predictions, dim=0).tolist()
+        return softmax(torch.cat(predictions, dim=0)).cpu().numpy()
 
     @torch.inference_mode()
-    def predict(self, inputs, batch_size=10, num_workers=4, progress_bar=True):
+    def predict(self, inputs, batch_size=10, num_workers=0, progress_bar=True):
         # Обработка одного объекта
         if isinstance(inputs, dict):
             if 'labels' in inputs:
@@ -391,12 +393,12 @@ class Classifier(nn.Module):
                 inputs.pop('args')
             
             for i in range(len(args)):
-                args[i] = args[i].to(self.device)
+                args[i] = args[i].to(self.device).unsqueeze(0)
             
             for key in inputs:
-                inputs[key] = inputs[key].to(self.device)
+                inputs[key] = inputs[key].to(self.device).unsqueeze(0)
                 
-            return np.argmax(self.__model(*args, **inputs)[0].tolist())
+            return np.argmax(self.__model(*args, **inputs).squeeze().cpu().numpy())
 
         # Если формат данных неизвестен
         if not isinstance(inputs, torch.utils.data.Dataset):
@@ -424,9 +426,9 @@ class Classifier(nn.Module):
                 batch[key] = batch[key].to(self.device)
                 
             batch_predictions = self.__model(*args, **batch)
-            predictions.extend(np.argmax(batch_predictions.cpu().numpy(), axis=1).tolist())
+            predictions.append(np.argmax(batch_predictions.cpu().numpy(), axis=1))
 
-        return predictions
+        return np.hstack(predictions)
 
     def save_model(self, name="best", is_path=False):
         if not is_path:

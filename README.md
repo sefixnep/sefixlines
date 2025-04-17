@@ -31,16 +31,16 @@ pip install -r requirements.txt
 Задай пути к изображениям, классы и метки:
 
 ```python
-classes = ["cat", "dog", "hedgehog"]  # название классов
+classes = ["cat", "dog", "hedgehog"]                # название классов
 data = ["images/cat1.jpg", "images/dog2.jpg", ...]  # пути к изображениям
-labels = [0, 1, ...]  # метки, соответствующие изображениям
+labels = [0, 1, ...]  # метки, соответствующие изображениям (закодированные LabelEncoder-ом)
 ```
 
 ### 2. 🎨 Аугментации (по желанию)
 
 ```python
 augmentation = transforms.Compose([
-    transforms.RandomHorizontalFlip(),  # можно добавить что угодно
+    # можно добавить что угодно
 ])
 ```
 
@@ -81,6 +81,7 @@ model_wrapped.fit(train_loader, valid_loader, epochs=10)
 
 ```python
 predict_class_id = best_model_wrapped.predict(test_set)
+predict_class_proba = best_model_wrapped.predict_proba(test_set)
 predict_class_names = [classes[class_id] for class_id in predict_class_id]
 ```
 

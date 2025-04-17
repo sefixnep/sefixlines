@@ -42,7 +42,7 @@ def denormalize(image_tensor, mean, std):
     return (denormalize_image * 255).clamp(0, 255).byte()
 
 
-def show_classification(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=10):
+def show_classification(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=5):
     # Получаем метки из dataset
     labels = np.array(dataset.labels)
 
@@ -72,14 +72,14 @@ def show_classification(dataset, amount=3, figsize=(4, 4), classes=None, n_class
             shown_indices[class_id] += 1  # Увеличиваем счетчик для текущего класса
 
             # Загружаем изображение
-            image = dataset.get_item(idx)['image']
+            image = dataset.get_item(idx)['image'].resize((512, 512))
 
             # Определяем название класса
             class_name = f"Class: {class_id}" if classes is None else f"Class: {classes[class_id]}"
 
             # Отображение изображения
             ax = axes[row][col]
-            ax.imshow(np.array(image).transpose(1, 2, 0))
+            ax.imshow(np.array(image))
 
             ax.set_title(class_name, fontsize=10)  # Белый текст для контраста
             ax.axis("off")
