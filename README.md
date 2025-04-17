@@ -65,6 +65,11 @@ model = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.IMAGENET1K
 model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, len(classes))
 ```
 
+Вариант 3: Собери свою
+
+ - Вас никак не ограничивают в архитектуре модели, главное, чтобы ее выходами при вызове были логиты для обучения. Используйте CustomOutput в случае необходимости.
+ - Модель должна соответствовать задаче, под которую создан пайплайн.
+
 ### 4. 🏁 Обучение
 
 ```python
@@ -75,12 +80,8 @@ model_wrapped.fit(train_loader, valid_loader, epochs=10)
 ### 5. 🧪 Предсказания
 
 ```python
-test_dir = ""
-test_image_paths = [f"{test_dir}/{name}" for name in os.listdir(test_dir)]
-test_set = Dataset(test_image_paths, transform)
-
-pred_ids = best_model_wrapped.predict(test_set)
-pred_names = [classes[i] for i in pred_ids]
+predict_class_id = best_model_wrapped.predict(test_set)
+predict_class_names = [classes[class_id] for class_id in predict_class_id]
 ```
 
 ---
