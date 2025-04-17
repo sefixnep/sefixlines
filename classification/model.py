@@ -50,8 +50,8 @@ class Classifier(nn.Module):
             metric = accuracy_score
         self.__metric = metric
 
-        # Переносим модель на устройство (CPU или GPU)
-        self.__model = model.to(self.device)
+        # Распараллеливаем модель по устройствам (CPU или GPU)
+        self.__model = nn.DataParallel(model)
 
         # Инициализируем историю
         self.__lr_history = []
