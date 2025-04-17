@@ -13,6 +13,7 @@ from sklearn.metrics import accuracy_score
 
 # Остальное
 import shutil
+from collections import deque
 from IPython.display import clear_output
 
 # Configuration
@@ -108,7 +109,10 @@ class Classifier(nn.Module):
         # Переменные для подсчета
         count = 0
         total_loss = 0
-        total_score = 0
+
+        maxlen_labels = 1000
+        y_true = deque(maxlen=maxlen_labels)
+        y_pred = deque(maxlen=maxlen_labels)
 
         # Название для tqdm
         progress_desc = 'Training' if mode == 'train' else 'Evaluating'
@@ -148,12 +152,15 @@ class Classifier(nn.Module):
 
                 # Подсчет потерь и метрик
                 total_loss += loss.item()
-                total_score += self.__metric(labels.cpu().numpy(), output.argmax(dim=1).cpu().numpy())
+
+                y_true.extend(labels.tolist())
+                y_pred.extend(output.argmax(dim=1).tolist())
+
                 count += 1
 
                 # Обновляем описание tqdm с текущими значениями
                 current_loss = total_loss / count
-                current_score = total_score / count
+                current_score = self.__metric(np.array(y_true), np.array(y_pred))
 
                 display.update({
                     self.__loss_fn.__class__.__name__: f"{current_loss:.4f}",
@@ -170,7 +177,7 @@ class Classifier(nn.Module):
                 return 0, 0
 
         # Возвращаем средний loss и метрику за эпоху
-        return total_loss / count, total_score / count
+        return total_loss / count, current_score
 
     def plot_stats(self):
         # Создаем объект фигуры
@@ -324,7 +331,7 @@ class Classifier(nn.Module):
             self.load()
 
     @torch.inference_mode()
-    def predict_proba(self, inputs, batch_size=10, progress_bar=True):
+    def predict_proba(self, inputs, batch_size=10, num_workers=4, progress_bar=True):
         # Обработка одного объекта
         if isinstance(inputs, dict):
             if 'labels' in inputs:
@@ -347,7 +354,7 @@ class Classifier(nn.Module):
             raise ValueError("Unsupported input type. Expected Dataset.")
         
         predictions = []
-        data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False)
+        data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
         if progress_bar:
             data_loader = tqdm(data_loader, desc="Predicting")
@@ -373,7 +380,7 @@ class Classifier(nn.Module):
         return torch.cat(predictions, dim=0).tolist()
 
     @torch.inference_mode()
-    def predict(self, inputs, batch_size=10, progress_bar=True):
+    def predict(self, inputs, batch_size=10, num_workers=4, progress_bar=True):
         # Обработка одного объекта
         if isinstance(inputs, dict):
             if 'labels' in inputs:
@@ -396,7 +403,7 @@ class Classifier(nn.Module):
             raise ValueError("Unsupported input type. Expected Dataset.")
         
         predictions = []
-        data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False)
+        data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
         if progress_bar:
             data_loader = tqdm(data_loader, desc="Predicting")
