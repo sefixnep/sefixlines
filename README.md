@@ -2,7 +2,12 @@
 
 > "Хочешь быстро обучить пару моделей и не утонуть в кастомных велосипедах? Ты по адресу."
 
----
+<p align="left">
+  <a href="https://www.youtube.com/watch?v=pzMqIQdTnek" target="_blank">
+    <img src="other/prewiew.png" alt="Watch the video" style="width:100%; max-width:600px; border-radius:10px;">
+  </a>
+</p>
+
 
 ## 💡 Что это умеет?
 
