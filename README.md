@@ -17,8 +17,8 @@
 ## ⚙️ Установка
 
 ```bash
-git clone https://github.com/Sefixnep/sefixnep_classification.git
-cd sefixnep_classification
+git clone https://github.com/Sefixnep/sefixnep_pipelines.git
+cd sefixnep_pipelines
 pip install -r requirements.txt
 ```
 
