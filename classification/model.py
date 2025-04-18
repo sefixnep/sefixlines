@@ -91,6 +91,39 @@ class Classifier(nn.Module):
 
         os.makedirs(f"{self.model_dir}/weights", exist_ok=True)
 
+    # Property атрибуты (без записи)
+    @property
+    def loss_fn(self):
+        return self.__loss_fn
+
+    @property 
+    def metric(self):
+        return self.__metric
+
+    @property
+    def model(self):
+        return self.__model
+
+    @property
+    def lr_history(self):
+        return self.__lr_history
+
+    @property
+    def train_loss_history(self):
+        return self.__train_loss_history
+
+    @property
+    def valid_loss_history(self):
+        return self.__valid_loss_history
+
+    @property
+    def train_score_history(self):
+        return self.__train_score_history
+
+    @property
+    def valid_score_history(self):
+        return self.__valid_score_history
+
     def forward(self, x):
         return self.__model(x)
 
