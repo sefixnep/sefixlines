@@ -307,7 +307,7 @@ class Classifier(nn.Module):
 
                 # Сохранение модели
                 # - Last
-                self.save_model("last")
+                self.save("last")
 
                 # - Best
                 if self.best_loss is None or valid_loss < self.best_loss:
@@ -315,18 +315,18 @@ class Classifier(nn.Module):
                     self.best_loss_epoch = epoch
 
                     if min_loss and not self.stop_fiting:
-                        self.save_model()
+                        self.save()
 
                 if self.best_score is None or valid_score > self.best_score:
                     self.best_score = valid_score
                     self.best_score_epoch = epoch
 
                     if not min_loss and not self.stop_fiting:
-                        self.save_model()
+                        self.save()
 
                 # - Epoch
                 if save_period is not None and epoch % save_period == 0:
-                    self.save_model(epoch)
+                    self.save(epoch)
 
                 # Делаем шаг планировщиком
                 if self.__scheduler is not None and not isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
@@ -463,7 +463,7 @@ class Classifier(nn.Module):
 
         return np.hstack(predictions)
 
-    def save_model(self, name="best", is_path=False):
+    def save(self, name="best", is_path=False):
         if not is_path:
             if isinstance(name, int) or name.isdigit():
                 name = f"epoch_{name}"
