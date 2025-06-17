@@ -4,13 +4,13 @@
 
 <p align="left">
   <a href="https://www.youtube.com/watch?v=pzMqIQdTnek" target="_blank">
-    <img src="assest/screencast_preview.png" alt="Watch the video" style="width:100%; max-width:600px; border-radius:10px;">
+    <img src="assets/screencast_preview.png" alt="Watch the video" style="width:100%; max-width:600px; border-radius:10px;">
   </a>
 </p>
 
 <p align="left">
   <a href="https://www.youtube.com/watch?v=yanPBmg1rWA" target="_blank">
-    <img src="assest/detailed_review_preview.png" alt="Watch the video" style="width:100%; max-width:600px; border-radius:10px;">
+    <img src="assets/detailed_review_preview.png" alt="Watch the video" style="width:100%; max-width:600px; border-radius:10px;">
   </a>
 </p>
 
