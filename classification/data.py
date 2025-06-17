@@ -90,3 +90,14 @@ def show_classification(dataset, amount=3, figsize=(4, 4), classes=None, n_class
 
     plt.tight_layout()
     plt.show()
+
+
+def show_texts(dataset, amount=3, classes=None):
+    """Вывод нескольких примеров текстов."""
+    for i in range(amount):
+        item = dataset.get_item(i)
+        text = item['text']
+        label = item.get('label')
+        if classes is not None and label is not None:
+            label = classes[label]
+        print(f"{i+1}) {text[:80]}{'...' if len(text) > 80 else ''} - {label}")
