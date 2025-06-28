@@ -1,15 +1,10 @@
-# Работа с данными
-import numpy as np
-
-# Torch
-import torch
-
-# Визуализация
-import matplotlib.pyplot as plt
-
-# Остальное
 import os
+import torch
 import random
+import numpy as np
+import matplotlib.pyplot as plt
+import torchvision.transforms as T
+from PIL import Image
 from tqdm.notebook import tqdm
 
 
@@ -42,7 +37,7 @@ def denormalize(image_tensor, mean, std):
     return (denormalize_image * 255).clamp(0, 255).byte()
 
 
-def show_classification(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=5):
+def show_images(dataset, amount=3, figsize=(4, 4), classes=None, n_classes=5):
     # Получаем метки из dataset
     labels = np.array(dataset.labels)
 
@@ -93,7 +88,6 @@ def show_classification(dataset, amount=3, figsize=(4, 4), classes=None, n_class
 
 
 def show_texts(dataset, amount=3, classes=None):
-    """Вывод нескольких примеров текстов."""
     for i in range(amount):
         item = dataset.get_item(i)
         text = item['text']
@@ -101,3 +95,86 @@ def show_texts(dataset, amount=3, classes=None):
         if classes is not None and label is not None:
             label = classes[label]
         print(f"{i+1}) {text[:80]}{'...' if len(text) > 80 else ''} - {label}")
+
+
+# Datasets
+
+class TextClassificationDataset(torch.utils.data.Dataset):
+    tokenizer = None
+    max_length = 128
+
+    def __init__(self, texts, labels=None):
+        self.texts = texts
+        self.labels = labels
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        text = self.texts[idx]
+        encoding = self.tokenizer(text, padding='max_length', truncation=True, max_length=self.max_length, return_tensors="pt")
+        encoding = {k: v.squeeze(0) for k, v in encoding.items()}
+        result = {'model_kwargs': encoding}
+
+        # Добавляем label, если есть
+        if self.labels is not None:
+            result['labels'] = torch.tensor(self.labels[idx], dtype=torch.long)
+
+        return result
+
+    def get_item(self, idx):
+        result = {'text': self.texts[idx]}
+        if self.labels is not None:
+            result['label'] = self.labels[idx]
+        return result  # text, (label)
+
+
+class ImageClassificationDataset(torch.utils.data.Dataset):
+    transform = T.Compose([
+        T.Resize((224, 224)),
+        T.ToTensor(),
+        T.Normalize(mean=0.5, std=0.5),
+    ])
+
+    def __init__(self, image_paths, labels=None, augment=False):
+        self.image_paths = image_paths
+        self.labels = labels
+        self.augment = augment
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        # Считываем изображение
+        image_path = self.image_paths[idx]
+        image_pil = Image.open(image_path).convert("RGB")
+
+        # Приминяем аугментации, если необходимо
+        if self.augment and hasattr(self, 'augmentation'):
+            image_pil = self.augmentation(image_pil)
+
+        # Трансформируем изображение в tensor
+        image_tensor = self.transform(image_pil)
+        result = {'model_args': [image_tensor]} # args/kwargs для подачи в модель
+
+        # Добавляем label, если есть
+        if self.labels is not None:
+            label = self.labels[idx]
+            label_tensor = torch.tensor(label, dtype=torch.long)
+            result['labels'] = label_tensor
+
+        return result
+    
+    def get_item(self, idx):
+        image_path = self.image_paths[idx]
+        image_pil = Image.open(image_path)
+
+        result = {'image': image_pil}
+        if self.labels is not None:
+            result['label'] = self.labels[idx]
+
+        return result # image, (label)
+    
+    @classmethod
+    def change_image_size(cls, new_size):
+        cls.transform.transforms[0] = T.Resize(new_size)

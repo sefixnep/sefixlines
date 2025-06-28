@@ -1,23 +1,16 @@
-# Работа с данными
-import pandas as pd
-
-# Torch
-from torch import nn, optim
-from torch.utils.data import DataLoader
-
-# Визуализация
-import seaborn as sns
-
-# Метрики
-from sklearn.metrics import accuracy_score
-
-# Остальное
+import os
+import torch
 import shutil
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+from torch import nn, optim
 from collections import deque
+from tqdm.notebook import tqdm
+from torch.utils.data import DataLoader
 from IPython.display import clear_output
-
-# Configuration
-from classification.data import *
+from sklearn.metrics import accuracy_score
 
 
 class Classifier(nn.Module):
@@ -154,22 +147,21 @@ class Classifier(nn.Module):
 
         try:
             for batch in progress_bar:
-                args = batch.get('args', list())
-                if 'args' in batch:
-                    batch.pop('args')
+                model_args = batch.pop('model_args', list())
+                for i in range(len(model_args)):
+                    model_args[i] = model_args[i].to(self.device)
 
-                for i in range(len(args)):
-                    args[i] = args[i].to(self.device)
+                model_kwargs = batch.pop('model_kwargs', dict())
+                for key in model_kwargs:
+                    model_kwargs[key] = model_kwargs[key].to(self.device)
 
-                for key in batch:
-                    batch[key] = batch[key].to(self.device)
-                labels = batch.pop('labels')
+                labels = batch.pop('labels').to(self.device)
 
                 if mode == 'train':
                     self.__optimizer.zero_grad()
 
                 # Прямой проход
-                output = self.__model(*args, **batch)
+                output = self.__model(*model_args, **model_kwargs)
                 loss = self.__loss_fn(output, labels)
 
                 # Обратное распространение и шаг оптимизатора только в режиме тренировки
@@ -368,21 +360,16 @@ class Classifier(nn.Module):
         softmax = nn.Softmax(1)
 
         # Обработка одного объекта
-        if isinstance(inputs, dict):
-            if 'labels' in inputs:
-                inputs = {k:v for k,v in inputs.items() if k != 'labels'}
+        if isinstance(inputs, dict):            
+            model_args = inputs.pop('model_args', list())
+            for i in range(len(model_args)):
+                model_args[i] = model_args[i].to(self.device).unsqueeze(0)
             
-            args = inputs.get('args', list())
-            if 'args' in inputs:
-                inputs.pop('args')
-            
-            for i in range(len(args)):
-                args[i] = args[i].to(self.device).unsqueeze(0)
-            
-            for key in inputs:
-                inputs[key] = inputs[key].to(self.device).unsqueeze(0)
+            model_kwargs = inputs.pop('kwargs', dict())
+            for key in model_kwargs:
+                model_kwargs[key] = model_kwargs[key].to(self.device).unsqueeze(0)
                 
-            return softmax(self.__model(*args, **inputs)).squeeze().cpu().numpy()
+            return softmax(self.__model(*model_args, **model_kwargs)).squeeze().cpu().numpy()
 
         # Если формат данных неизвестен
         if not isinstance(inputs, torch.utils.data.Dataset):
@@ -399,17 +386,15 @@ class Classifier(nn.Module):
             if 'labels' in batch:
                 batch.pop('labels')
                 
-            args = batch.get('args', list())
-            if 'args' in batch:
-                batch.pop('args')
+            model_args = batch.pop('model_args', list())
+            for i in range(len(model_args)):
+                model_args[i] = model_args[i].to(self.device)
                 
-            for i in range(len(args)):
-                args[i] = args[i].to(self.device)
+            model_kwargs = batch.pop('model_kwargs', dict())
+            for key in model_kwargs:
+                model_kwargs[key] = model_kwargs[key].to(self.device)
                 
-            for key in batch:
-                batch[key] = batch[key].to(self.device)
-                
-            batch_predictions = self.__model(*args, **batch)
+            batch_predictions = self.__model(*model_args, **model_kwargs)
             predictions.append(batch_predictions)
 
         return softmax(torch.cat(predictions, dim=0)).cpu().numpy()
@@ -421,17 +406,15 @@ class Classifier(nn.Module):
             if 'labels' in inputs:
                 inputs = {k:v for k,v in inputs.items() if k != 'labels'}
             
-            args = inputs.get('args', list())
-            if 'args' in inputs:
-                inputs.pop('args')
+            model_args = inputs.pop('model_args', list())            
+            for i in range(len(model_args)):
+                model_args[i] = model_args[i].to(self.device).unsqueeze(0)
             
-            for i in range(len(args)):
-                args[i] = args[i].to(self.device).unsqueeze(0)
-            
-            for key in inputs:
-                inputs[key] = inputs[key].to(self.device).unsqueeze(0)
+            model_kwargs = inputs.pop('model_kwargs', dict())
+            for key in model_kwargs:
+                model_kwargs[key] = model_kwargs[key].to(self.device).unsqueeze(0)
                 
-            return np.argmax(self.__model(*args, **inputs).squeeze().cpu().numpy())
+            return np.argmax(self.__model(*model_args, **model_kwargs).squeeze().cpu().numpy())
 
         # Если формат данных неизвестен
         if not isinstance(inputs, torch.utils.data.Dataset):
@@ -448,17 +431,15 @@ class Classifier(nn.Module):
             if 'labels' in batch:
                 batch.pop('labels')
                 
-            args = batch.get('args', list())
-            if 'args' in batch:
-                batch.pop('args')
+            model_args = batch.pop('model_args', list())                
+            for i in range(len(model_args)):
+                model_args[i] = model_args[i].to(self.device)
                 
-            for i in range(len(args)):
-                args[i] = args[i].to(self.device)
+            model_kwargs = batch.pop('model_kwargs', dict())
+            for key in model_kwargs:
+                model_kwargs[key] = model_kwargs[key].to(self.device)
                 
-            for key in batch:
-                batch[key] = batch[key].to(self.device)
-                
-            batch_predictions = self.__model(*args, **batch)
+            batch_predictions = self.__model(*model_args, **model_kwargs)
             predictions.append(np.argmax(batch_predictions.cpu().numpy(), axis=1))
 
         return np.hstack(predictions)
