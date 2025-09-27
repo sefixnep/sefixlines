@@ -1,21 +1,24 @@
 import os
+from pytesseract import Output
 import torch
 import shutil
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import segmentation_models_pytorch as smp
 from torch import nn, optim
-from collections import deque
 from tqdm.notebook import tqdm
 from torch.utils.data import DataLoader
 from IPython.display import clear_output
 from sklearn.metrics import accuracy_score
 
 
-class Classifier(nn.Module):
+class BaseModel(nn.Module):
+    """Базовый класс для моделей с основной архитектурой для обучения."""
+    
     def __init__(self, model, name='Model', optimizer=None, scheduler=None,
-                 loss_fn=None, metric=None, model_dir=None, exist_ok=True):
+                 loss_fn=None, metric=None, model_dir=None, exist_ok=True, target='labels'):
         super().__init__()
 
         # Название модели
@@ -35,16 +38,19 @@ class Classifier(nn.Module):
 
         # Функция потерь
         if loss_fn is None:
-            loss_fn = nn.CrossEntropyLoss()
+            loss_fn = self._default_loss_fn()
         self.__loss_fn = loss_fn
 
         # Метрика
         if metric is None:
-            metric = accuracy_score
+            metric = self._default_metric()
         self.__metric = metric
+        
+        # Тип ответа (для совместимости с разными задачами)
+        self.target = target
 
-        # Распараллеливаем модель по устройствам (CPU или GPU)
-        self.__model = nn.DataParallel(model)
+        # Переносим модель на устройство
+        self.__model = model.to(self.device)
 
         # Инициализируем историю
         self.__lr_history = []
@@ -83,6 +89,14 @@ class Classifier(nn.Module):
                 shutil.rmtree(model_dir)
 
         os.makedirs(f"{self.model_dir}/weights", exist_ok=True)
+    
+    def _default_loss_fn(self, *args, **kwargs):
+        """Метод должен быть переопределен в дочерних классах."""
+        raise NotImplementedError("Subclasses must implement _default_loss_fn")
+    
+    def _default_metric(self, *args, **kwargs):
+        """Метод должен быть переопределен в дочерних классах."""
+        raise NotImplementedError("Subclasses must implement _default_metric")
 
     # Property атрибуты (без записи)
     @property
@@ -135,10 +149,7 @@ class Classifier(nn.Module):
         # Переменные для подсчета
         count = 0
         total_loss = 0
-
-        y_maxlen = 1000
-        y_true = deque(maxlen=y_maxlen)
-        y_pred = deque(maxlen=y_maxlen)
+        total_score = 0
 
         # Название для tqdm
         progress_desc = 'Training' if mode == 'train' else 'Evaluating'
@@ -155,14 +166,14 @@ class Classifier(nn.Module):
                 for key in model_kwargs:
                     model_kwargs[key] = model_kwargs[key].to(self.device)
 
-                labels = batch.pop('labels').to(self.device)
+                target = batch.pop(self.target).to(self.device)
 
                 if mode == 'train':
                     self.__optimizer.zero_grad()
 
                 # Прямой проход
                 output = self.__model(*model_args, **model_kwargs)
-                loss = self.__loss_fn(output, labels)
+                loss = self.__loss_fn(output, target)
 
                 # Обратное распространение и шаг оптимизатора только в режиме тренировки
                 if mode == 'train':
@@ -175,17 +186,16 @@ class Classifier(nn.Module):
                         self.lr = self.__scheduler.get_last_lr()[0]
                         display['lr'] = round(self.lr, 10)
 
-                # Подсчет потерь и метрик
+                # Подсчет потерь и метрик с учетом специализированной логики
+                prediction = output.argmax(dim=1)
+
                 total_loss += loss.item()
-
-                y_true.extend(labels.tolist())
-                y_pred.extend(output.argmax(dim=1).tolist())
-
+                total_score += self.__metric(prediction.detach().cpu().numpy(), target.detach().cpu().numpy())
                 count += 1
 
                 # Обновляем описание tqdm с текущими значениями
                 current_loss = total_loss / count
-                current_score = self.__metric(np.array(y_true), np.array(y_pred))
+                current_score = total_score / count
 
                 display.update({
                     self.__loss_fn.__class__.__name__: f"{current_loss:.4f}",
@@ -202,7 +212,7 @@ class Classifier(nn.Module):
                 return 0, 0
 
         # Возвращаем средний loss и метрику за эпоху
-        return total_loss / count, current_score
+        return current_loss, current_score
 
     def plot_stats(self):
         # Создаем объект фигуры
@@ -356,8 +366,12 @@ class Classifier(nn.Module):
             self.load()
 
     @torch.inference_mode()
-    def predict_proba(self, inputs, batch_size=10, num_workers=0, progress_bar=True):
-        softmax = nn.Softmax(1)
+    def predict_proba(self, inputs, batch_size=10, num_workers=0, progress_bar=True, softmax=True):
+        self.__model.eval()
+
+        # Если формат данных неизвестен
+        if not isinstance(inputs, (dict, torch.utils.data.Dataset)):
+            raise ValueError("Unsupported input type. Expected dict or Dataset.")
 
         # Обработка одного объекта
         if isinstance(inputs, dict):            
@@ -365,26 +379,25 @@ class Classifier(nn.Module):
             for i in range(len(model_args)):
                 model_args[i] = model_args[i].to(self.device).unsqueeze(0)
             
-            model_kwargs = inputs.pop('kwargs', dict())
+            model_kwargs = inputs.pop('model_kwargs', dict())
             for key in model_kwargs:
                 model_kwargs[key] = model_kwargs[key].to(self.device).unsqueeze(0)
                 
-            return softmax(self.__model(*model_args, **model_kwargs)).squeeze().cpu().numpy()
-
-        # Если формат данных неизвестен
-        if not isinstance(inputs, torch.utils.data.Dataset):
-            raise ValueError("Unsupported input type. Expected Dataset.")
+            output = self.__model(*model_args, **model_kwargs).squeeze()
+            if softmax:
+                output = output.softmax(dim=0)
+            return output.cpu().numpy()
         
         predictions = []
         data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
         if progress_bar:
-            data_loader = tqdm(data_loader, desc="Predicting")
+            data_loader = tqdm(data_loader, desc="Predicting probabilities")
 
         # Итерация по батчам
         for batch in data_loader:
-            if 'labels' in batch:
-                batch.pop('labels')
+            if self.target in batch:
+                batch.pop(self.target)
                 
             model_args = batch.pop('model_args', list())
             for i in range(len(model_args)):
@@ -394,17 +407,25 @@ class Classifier(nn.Module):
             for key in model_kwargs:
                 model_kwargs[key] = model_kwargs[key].to(self.device)
                 
-            batch_predictions = self.__model(*model_args, **model_kwargs)
-            predictions.append(batch_predictions)
+            output = self.__model(*model_args, **model_kwargs)
+            if softmax:
+                output = output.softmax(dim=1)
+            predictions.append(output.cpu().numpy())
 
-        return softmax(torch.cat(predictions, dim=0)).cpu().numpy()
+        return np.vstack(predictions)
 
     @torch.inference_mode()
     def predict(self, inputs, batch_size=10, num_workers=0, progress_bar=True):
+        self.__model.eval()
+
+        # Если формат данных неизвестен
+        if not isinstance(inputs, (dict, torch.utils.data.Dataset)):
+            raise ValueError("Unsupported input type. Expected dict or Dataset.")
+        
         # Обработка одного объекта
         if isinstance(inputs, dict):
-            if 'labels' in inputs:
-                inputs = {k:v for k,v in inputs.items() if k != 'labels'}
+            if self.target in inputs:
+                inputs = {k:v for k,v in inputs.items() if k != self.target}
             
             model_args = inputs.pop('model_args', list())            
             for i in range(len(model_args)):
@@ -414,11 +435,8 @@ class Classifier(nn.Module):
             for key in model_kwargs:
                 model_kwargs[key] = model_kwargs[key].to(self.device).unsqueeze(0)
                 
-            return np.argmax(self.__model(*model_args, **model_kwargs).squeeze().cpu().numpy())
-
-        # Если формат данных неизвестен
-        if not isinstance(inputs, torch.utils.data.Dataset):
-            raise ValueError("Unsupported input type. Expected Dataset.")
+            output = self.__model(*model_args, **model_kwargs)
+            return output.squeeze().argmax(dim=0).cpu().numpy()
         
         predictions = []
         data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False, num_workers=num_workers)
@@ -428,8 +446,8 @@ class Classifier(nn.Module):
 
         # Итерация по батчам
         for batch in data_loader:
-            if 'labels' in batch:
-                batch.pop('labels')
+            if self.target in batch:
+                batch.pop(self.target)
                 
             model_args = batch.pop('model_args', list())                
             for i in range(len(model_args)):
@@ -439,10 +457,10 @@ class Classifier(nn.Module):
             for key in model_kwargs:
                 model_kwargs[key] = model_kwargs[key].to(self.device)
                 
-            batch_predictions = self.__model(*model_args, **model_kwargs)
-            predictions.append(np.argmax(batch_predictions.cpu().numpy(), axis=1))
+            output = self.__model(*model_args, **model_kwargs)
+            predictions.append(output.argmax(dim=1).cpu().numpy())
 
-        return np.hstack(predictions)
+        return np.vstack(predictions)
 
     def save(self, name="best", is_path=False):
         if not is_path:
@@ -473,3 +491,51 @@ class Classifier(nn.Module):
             self.__model.load_state_dict(state_dict)
         else:
             print(f"Не получилось загрузить модель, путь '{path}' не найден")
+
+
+class Classifier(BaseModel):
+    """Классификатор, наследуется от BaseModel."""
+    
+    def __init__(self, model, name='Classifier', optimizer=None, scheduler=None,
+                 loss_fn=None, metric=None, model_dir=None, exist_ok=True, target='labels'):
+        super().__init__(model, name, optimizer, scheduler, loss_fn, metric, model_dir, exist_ok, target)
+    
+    def _default_loss_fn(self):
+        """Функция потерь по умолчанию для классификации."""
+        return nn.CrossEntropyLoss()
+    
+    def _default_metric(self):
+        """Метрика по умолчанию для классификации."""
+        return accuracy_score
+
+
+class SemanticSegmenter(BaseModel):
+    """Semantic Segmenter, наследуется от BaseModel."""
+    
+    def __init__(self, model, name='SemanticSegmenter', optimizer=None, scheduler=None,
+                 loss_fn=None, metric=None, model_dir=None, exist_ok=True, target='masks'):
+        super().__init__(model, name, optimizer, scheduler, loss_fn, metric, model_dir, exist_ok, target)
+    
+    def _default_loss_fn(self):
+        """Функция потерь по умолчанию для семантической сегментации."""
+        return smp.losses.DiceLoss(mode='multiclass')
+    
+    def _default_metric(self):
+        """Метрика по умолчанию для семантической сегментации."""
+
+        def iou_score(target, prediction):
+            num_classes = max(target.max(), prediction.max()) + 1
+            ious = []
+            for cls in range(num_classes):
+                target_cls = (target == cls)
+                pred_cls = (prediction == cls)
+                intersection = np.logical_and(target_cls, pred_cls).sum()
+                union = np.logical_or(target_cls, pred_cls).sum()
+                if union == 0:
+                    ious.append(np.nan)
+                else:
+                    ious.append(intersection / union)
+            # Среднее по всем классам, игнорируя nan
+            return np.nanmean(ious)
+        
+        return iou_score

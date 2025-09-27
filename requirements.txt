@@ -18,5 +18,5 @@ Pillow>=8.3.0
 # Для работы с трансформерами (опционально)
 transformers>=4.30.0
 
-# Для поиска оптимального learning rate
-torch-lr-finder>=0.2.1 
+# Для семантической сегментации
+segmentation-models-pytorch>=0.3.0 
