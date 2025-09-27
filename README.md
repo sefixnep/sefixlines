@@ -17,14 +17,19 @@ cd sefixlines
 pip install -r requirements.txt
 ```
 
+> ⚡ **Настоятельно рекомендуем ознакомиться с примерами решения вашей задачи в папке [notebooks](notebooks/)** — это поможет быстро разобраться и стартовать! 🌟
+
 ## 🚦 Минимальный запуск
 1. **Подготовьте данные**
 ```python
-# изображения
-train_dataset = ImageClassificationDataset(train_paths, train_labels, augment=True)
+# Классификация изображения
+ImageClassificationDataset(paths, labels)
 
-# тексты
-text_dataset = TextClassificationDataset(texts, labels)
+# Семантическая сегментация
+ImageSemanticSegmentationDataset(image_paths, mask_paths)
+
+# Классификация текста
+TextClassificationDataset(texts, labels)
 ```
 2. **Выберите модель** (любая модель, возвращающая логиты).
 3. **Обучите**
@@ -39,12 +44,8 @@ segmenter.fit(train_loader, valid_loader, num_epochs=10)
 ```
 
 ## 🛠 Что можно настроить
-- `ImageClassificationDataset.augmentation` — свои аугментации
-- `ImageClassificationDataset.change_image_size((256, 256))`
-- `TextClassificationDataset.tokenizer` и `max_length`
-- свой `optimizer`, `scheduler` или `loss_fn` в `Classifier` и `SemanticSegmenter`
-- `answer='masks'` для сегментации или `answer='labels'` для классификации
-- поиграться с примерами в папке [notebooks](notebooks/) 🌟
+- свой `optimizer`, `scheduler` или `loss_fn`
+- аугментации в датасэте
 
 
 ---
