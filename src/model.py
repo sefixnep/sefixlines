@@ -412,7 +412,7 @@ class BaseModel(nn.Module):
                 output = output.softmax(dim=1)
             predictions.append(output.cpu().numpy())
 
-        return np.vstack(predictions)
+        return np.concatenate(predictions, axis=0)
 
     @torch.inference_mode()
     def predict(self, inputs, batch_size=10, num_workers=0, progress_bar=True):
@@ -460,7 +460,7 @@ class BaseModel(nn.Module):
             output = self.__model(*model_args, **model_kwargs)
             predictions.append(output.argmax(dim=1).cpu().numpy())
 
-        return np.vstack(predictions)
+        return np.concatenate(predictions, axis=0)
 
     def save(self, name="best", is_path=False):
         if not is_path:
