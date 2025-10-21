@@ -65,7 +65,7 @@ class BaseModel(nn.Module):
         self.stop_fiting = False
 
         if model_dir is None:
-            model_dir = f"../models/{name}"
+            model_dir = f"./models/{name}"
         self.model_dir = model_dir
 
         # Путь для сохранения модели

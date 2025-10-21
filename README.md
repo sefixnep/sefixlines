@@ -65,5 +65,13 @@ segmenter.fit(train_loader, valid_loader, num_epochs=3)
 - аугментации в датасэте
 
 
----
-> ❗ Есть идеи или нашли ошибку? Пишите в [telegram](https://t.me/sefixnep)
+Контакты
+--------
+
+- [![Telegram](https://img.shields.io/badge/Telegram-2CA5E0?style=flat&logo=telegram&logoColor=white)](https://t.me/sefixnep)  
+- [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/sefixnep)
+
+Лицензия
+--------
+
+MIT. См. файл LICENSE.

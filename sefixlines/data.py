@@ -377,7 +377,7 @@ class TextClassificationDataset(torch.utils.data.Dataset):
     def __init__(self, texts, labels=None):
         self.texts = texts
         self.labels = labels
-        self.multi_label = self.labels is not None and isinstance(self.labels, list)
+        self.multi_label = self.labels is not None and isinstance(self.labels[0], (list, np.ndarray))
 
     def __len__(self):
         return len(self.texts)
