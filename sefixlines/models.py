@@ -1,6 +1,6 @@
 import os
-from pytesseract import Output
 import torch
+import random
 import shutil
 import numpy as np
 import pandas as pd
@@ -65,7 +65,7 @@ class BaseModel(nn.Module):
         self.stop_fiting = False
 
         if model_dir is None:
-            model_dir = f"./models/{name}"
+            model_dir = f"../models/{name}"
         self.model_dir = model_dir
 
         # Путь для сохранения модели
@@ -81,8 +81,14 @@ class BaseModel(nn.Module):
                 self.__train_score_history, self.__valid_score_history = results['train_score'].tolist(), results['valid_score'].tolist()
 
                 # Лучшие значения
-                self.best_score, self.best_score_epoch = results['valid_score'].max(), results['valid_score'].argmax() + 1
-                self.best_loss, self.best_loss_epoch = results['valid_loss'].min(), results['valid_loss'].argmin() + 1
+                # Проверяем, есть ли валидационные данные (не все NaN)
+                if not results['valid_score'].isna().all():
+                    self.best_score, self.best_score_epoch = results['valid_score'].max(), results['valid_score'].idxmax() + 1
+                    self.best_loss, self.best_loss_epoch = results['valid_loss'].min(), results['valid_loss'].idxmin() + 1
+                else:
+                    # Используем тренировочные метрики
+                    self.best_score, self.best_score_epoch = results['train_score'].max(), results['train_score'].idxmax() + 1
+                    self.best_loss, self.best_loss_epoch = results['train_loss'].min(), results['train_loss'].idxmin() + 1
 
                 self.load("last")
             else:
@@ -134,7 +140,7 @@ class BaseModel(nn.Module):
     def forward(self, x):
         return self.__model(x)
 
-    def run_epoch(self, data_loader, mode='train'):
+    def run_epoch(self, data_loader, mode='train', **kwargs):
         # Установка режима работы модели
         if mode == 'train':
             self.__model.train()
@@ -178,7 +184,8 @@ class BaseModel(nn.Module):
                 # Обратное распространение и шаг оптимизатора только в режиме тренировки
                 if mode == 'train':
                     loss.backward()
-                    torch.nn.utils.clip_grad_norm_(self.__model.parameters(), 1.0)
+                    if 'clip_grad_norm' in kwargs:
+                        torch.nn.utils.clip_grad_norm_(self.__model.parameters(), kwargs['clip_grad_norm'])
                     self.__optimizer.step()
 
                     if isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
@@ -187,10 +194,13 @@ class BaseModel(nn.Module):
                         display['lr'] = round(self.lr, 10)
 
                 # Подсчет потерь и метрик с учетом специализированной логики
-                prediction = output.argmax(dim=1)
+                if getattr(self, 'multi_label', False):
+                    prediction = torch.sigmoid(output).round()
+                else:
+                    prediction = output.argmax(dim=1)
 
                 total_loss += loss.item()
-                total_score += self.__metric(prediction.detach().cpu().numpy(), target.detach().cpu().numpy())
+                total_score += self.__metric(prediction.detach().cpu().numpy().flatten(), target.detach().cpu().numpy().flatten())
                 count += 1
 
                 # Обновляем описание tqdm с текущими значениями
@@ -219,13 +229,17 @@ class BaseModel(nn.Module):
         fig, axes = plt.subplots(1, 2, figsize=(16, 8))
         epochs = range(1, len(self.__train_loss_history) + 1)
 
+        # Проверяем, есть ли валидационные данные
+        has_valid_data = not all(np.isnan(self.__valid_loss_history))
+
         # Визуализация потерь
         sns.lineplot(ax=axes[0], x=epochs, y=self.__train_loss_history, label='Train Loss', linestyle='--', marker='o',
                     color='#1f77b4', linewidth=3)
-        sns.lineplot(ax=axes[0], x=epochs, y=self.__valid_loss_history, label='Valid Loss', linestyle='-', marker='o',
-                    color='#bc4b51', linewidth=3)
-        axes[0].plot(epochs, self.__valid_loss_history, 'o', markerfacecolor='none', markeredgecolor='#bc4b51', markersize=7,
-                    linewidth=2)
+        if has_valid_data:
+            sns.lineplot(ax=axes[0], x=epochs, y=self.__valid_loss_history, label='Valid Loss', linestyle='-', marker='o',
+                        color='#bc4b51', linewidth=3)
+            axes[0].plot(epochs, self.__valid_loss_history, 'o', markerfacecolor='none', markeredgecolor='#bc4b51', markersize=7,
+                        linewidth=2)
         axes[0].set_title(f'{self.name} - {self.__loss_fn.__class__.__name__}')
         axes[0].set_xlabel('Epochs')
         axes[0].legend()
@@ -236,10 +250,11 @@ class BaseModel(nn.Module):
         # Визуализация кастомной метрики
         sns.lineplot(ax=axes[1], x=epochs, y=self.__train_score_history, label=f'Train {self.__metric.__name__}', linestyle='--',
                     marker='o', linewidth=3)
-        sns.lineplot(ax=axes[1], x=epochs, y=self.__valid_score_history, label=f'Valid {self.__metric.__name__}', linestyle='-',
-                    marker='o', linewidth=3)
-        axes[1].plot(epochs, self.__valid_score_history, 'o', markerfacecolor='none', markeredgecolor='#DD8452', markersize=7,
-                    linewidth=2)
+        if has_valid_data:
+            sns.lineplot(ax=axes[1], x=epochs, y=self.__valid_score_history, label=f'Valid {self.__metric.__name__}', linestyle='-',
+                        marker='o', linewidth=3)
+            axes[1].plot(epochs, self.__valid_score_history, 'o', markerfacecolor='none', markeredgecolor='#DD8452', markersize=7,
+                        linewidth=2)
         axes[1].set_title(f'{self.name} - {self.__metric.__name__}')
         axes[1].set_xlabel('Epochs')
         axes[1].legend()
@@ -255,8 +270,11 @@ class BaseModel(nn.Module):
         # Возвращаем объект фигуры
         return fig
 
-    def fit(self, train_loader, valid_loader, num_epochs,
-            min_loss=False, visualize=True, use_best_model=True, save_period=None):
+    def fit(self, 
+            train_loader: DataLoader, valid_loader: DataLoader = None, num_epochs: int = 1,
+            min_loss: bool = False, visualize: bool = True, use_best_model: bool = True, save_period: int = None, 
+            train_params: dict = dict(), eval_params: dict = dict()
+        ):
         # Настраиваем стиль графиков
         sns.set_style('whitegrid')
         sns.set_palette('Set2')
@@ -272,10 +290,13 @@ class BaseModel(nn.Module):
             print(f"\nEpoch: {epoch}/{num_epochs}\n")
 
             # Обучение на тренировочных данных
-            train_loss, train_score = self.run_epoch(train_loader, mode='train')
+            train_loss, train_score = self.run_epoch(train_loader, mode='train', **train_params)
 
-            # Оценка на валидационных данных
-            valid_loss, valid_score = self.run_epoch(valid_loader, mode='eval')
+            # Оценка на валидационных данных (если есть валидационный набор)
+            if valid_loader is not None:
+                valid_loss, valid_score = self.run_epoch(valid_loader, mode='eval', **eval_params)
+            else:
+                valid_loss, valid_score = None, None
 
             # Очищаем вывод для обновления информации
             clear_output()
@@ -285,18 +306,24 @@ class BaseModel(nn.Module):
             print(f"Learning Rate: {round(self.lr, 10)}\n")
 
             print(f'Loss: {self.__loss_fn.__class__.__name__}')
-            print(f" - Train: {train_loss:.4f}\n - Valid: {valid_loss:.4f}\n")
+            if valid_loss is not None:
+                print(f" - Train: {train_loss:.4f}\n - Valid: {valid_loss:.4f}\n")
+            else:
+                print(f" - Train: {train_loss:.4f}\n")
 
             print(f"Score: {self.__metric.__name__}")
-            print(f" - Train: {train_score:.4f}\n - Valid: {valid_score:.4f}\n")
+            if valid_score is not None:
+                print(f" - Train: {train_score:.4f}\n - Valid: {valid_score:.4f}\n")
+            else:
+                print(f" - Train: {train_score:.4f}\n")
 
             if not self.stop_fiting:
                 # Сохранение истории
                 self.__lr_history.append(self.lr)
                 self.__train_loss_history.append(train_loss)
-                self.__valid_loss_history.append(valid_loss)
+                self.__valid_loss_history.append(valid_loss if valid_loss is not None else float('nan'))
                 self.__train_score_history.append(train_score)
-                self.__valid_score_history.append(valid_score)
+                self.__valid_score_history.append(valid_score if valid_score is not None else float('nan'))
 
                 pd.DataFrame({
                     "epoch": range(1, len(self.__train_loss_history) + 1),
@@ -311,20 +338,36 @@ class BaseModel(nn.Module):
                 # - Last
                 self.save("last")
 
-                # - Best
-                if self.best_loss is None or valid_loss < self.best_loss:
-                    self.best_loss = valid_loss
-                    self.best_loss_epoch = epoch
+                # - Best (только если есть валидационные данные)
+                if valid_loader is not None:
+                    if self.best_loss is None or valid_loss < self.best_loss:
+                        self.best_loss = valid_loss
+                        self.best_loss_epoch = epoch
 
-                    if min_loss and not self.stop_fiting:
-                        self.save()
+                        if min_loss and not self.stop_fiting:
+                            self.save()
 
-                if self.best_score is None or valid_score > self.best_score:
-                    self.best_score = valid_score
-                    self.best_score_epoch = epoch
+                    if self.best_score is None or valid_score > self.best_score:
+                        self.best_score = valid_score
+                        self.best_score_epoch = epoch
 
-                    if not min_loss and not self.stop_fiting:
-                        self.save()
+                        if not min_loss and not self.stop_fiting:
+                            self.save()
+                else:
+                    # Если нет валидации, сохраняем на основе тренировочных метрик
+                    if self.best_loss is None or train_loss < self.best_loss:
+                        self.best_loss = train_loss
+                        self.best_loss_epoch = epoch
+
+                        if min_loss and not self.stop_fiting:
+                            self.save()
+
+                    if self.best_score is None or train_score > self.best_score:
+                        self.best_score = train_score
+                        self.best_score_epoch = epoch
+
+                        if not min_loss and not self.stop_fiting:
+                            self.save()
 
                 # - Epoch
                 if save_period is not None and epoch % save_period == 0:
@@ -333,7 +376,10 @@ class BaseModel(nn.Module):
                 # Делаем шаг планировщиком
                 if self.__scheduler is not None and not isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
                     if isinstance(self.__scheduler, optim.lr_scheduler.ReduceLROnPlateau):
-                        self.__scheduler.step(valid_loss if min_loss else valid_score)
+                        if valid_loader is not None:
+                            self.__scheduler.step(valid_loss if min_loss else valid_score)
+                        else:
+                            self.__scheduler.step(train_loss if min_loss else train_score)
 
                         if self.__scheduler.get_last_lr()[0] != self.lr:
                             self.load()
@@ -349,9 +395,14 @@ class BaseModel(nn.Module):
                     fig = self.plot_stats()
                     fig.savefig(f'{self.model_dir}/fiting_plot.png', dpi=300)
 
-                print("Best:")
-                print(f"Loss - {self.best_loss:.4f} ({self.best_loss_epoch} epoch)")
-                print(f"Score - {self.best_score:.4f} ({self.best_score_epoch} epoch)\n")
+                if valid_loader is not None:
+                    print("Best:")
+                    print(f"Loss - {self.best_loss:.4f} ({self.best_loss_epoch} epoch)")
+                    print(f"Score - {self.best_score:.4f} ({self.best_score_epoch} epoch)\n")
+                else:
+                    print("Best (train):")
+                    print(f"Loss - {self.best_loss:.4f} ({self.best_loss_epoch} epoch)")
+                    print(f"Score - {self.best_score:.4f} ({self.best_score_epoch} epoch)\n")
 
 
             # Проверяем флаг остановки обучения
@@ -366,7 +417,7 @@ class BaseModel(nn.Module):
             self.load()
 
     @torch.inference_mode()
-    def predict_proba(self, inputs, batch_size=10, num_workers=0, progress_bar=True, softmax=True):
+    def predict_proba(self, inputs, batch_size=10, num_workers=0, progress_bar=True, apply_activation=True):
         self.__model.eval()
 
         # Если формат данных неизвестен
@@ -384,8 +435,11 @@ class BaseModel(nn.Module):
                 model_kwargs[key] = model_kwargs[key].to(self.device).unsqueeze(0)
                 
             output = self.__model(*model_args, **model_kwargs).squeeze()
-            if softmax:
-                output = output.softmax(dim=0)
+            if apply_activation:
+                if getattr(self, 'multi_label', False):
+                    output = torch.sigmoid(output)
+                else:
+                    output = output.softmax(dim=0)
             return output.cpu().numpy()
         
         predictions = []
@@ -408,14 +462,17 @@ class BaseModel(nn.Module):
                 model_kwargs[key] = model_kwargs[key].to(self.device)
                 
             output = self.__model(*model_args, **model_kwargs)
-            if softmax:
-                output = output.softmax(dim=1)
+            if apply_activation:
+                if getattr(self, 'multi_label', False):
+                    output = torch.sigmoid(output)
+                else:
+                    output = output.softmax(dim=1)
             predictions.append(output.cpu().numpy())
 
         return np.concatenate(predictions, axis=0)
 
     @torch.inference_mode()
-    def predict(self, inputs, batch_size=10, num_workers=0, progress_bar=True):
+    def predict(self, inputs, batch_size=10, num_workers=0, progress_bar=True, threshold=0.5):
         self.__model.eval()
 
         # Если формат данных неизвестен
@@ -435,8 +492,11 @@ class BaseModel(nn.Module):
             for key in model_kwargs:
                 model_kwargs[key] = model_kwargs[key].to(self.device).unsqueeze(0)
                 
-            output = self.__model(*model_args, **model_kwargs)
-            return output.squeeze().argmax(dim=0).cpu().numpy()
+            output = self.__model(*model_args, **model_kwargs).squeeze()
+            if getattr(self, 'multi_label', False):
+                return (torch.sigmoid(output) > threshold).cpu().numpy().astype(int)
+            else:
+                return output.argmax(dim=0).cpu().numpy()
         
         predictions = []
         data_loader = DataLoader(inputs, batch_size=batch_size, shuffle=False, num_workers=num_workers)
@@ -458,7 +518,10 @@ class BaseModel(nn.Module):
                 model_kwargs[key] = model_kwargs[key].to(self.device)
                 
             output = self.__model(*model_args, **model_kwargs)
-            predictions.append(output.argmax(dim=1).cpu().numpy())
+            if getattr(self, 'multi_label', False):
+                predictions.append((torch.sigmoid(output) > threshold).cpu().numpy().astype(int))
+            else:
+                predictions.append(output.argmax(dim=1).cpu().numpy())
 
         return np.concatenate(predictions, axis=0)
 
@@ -497,16 +560,115 @@ class Classifier(BaseModel):
     """Классификатор, наследуется от BaseModel."""
     
     def __init__(self, model, name='Classifier', optimizer=None, scheduler=None,
-                 loss_fn=None, metric=None, model_dir=None, exist_ok=True, target='labels'):
+                 loss_fn=None, metric=None, model_dir=None, exist_ok=True, target='labels', multi_label=False):
+        self.multi_label = multi_label
         super().__init__(model, name, optimizer, scheduler, loss_fn, metric, model_dir, exist_ok, target)
     
     def _default_loss_fn(self):
         """Функция потерь по умолчанию для классификации."""
-        return nn.CrossEntropyLoss()
+        return nn.CrossEntropyLoss() if not self.multi_label else nn.BCEWithLogitsLoss()
     
     def _default_metric(self):
         """Метрика по умолчанию для классификации."""
         return accuracy_score
+
+    def visualize_predictions(self, dataset, n=(2, 4), classes=None, fig_image_size=5, threshold=0.5):        
+        # Определяем тип датасета
+        is_image = hasattr(dataset, 'image_paths')
+        
+        if is_image:
+            # Визуализация для изображений
+            fig, axes = plt.subplots(n[0], n[1], figsize=(fig_image_size * n[1], fig_image_size * n[0]))
+            
+            # Обрабатываем случай, когда axes не двумерный
+            if n[0] == 1 and n[1] == 1:
+                axes = np.array([[axes]])
+            elif n[0] == 1:
+                axes = axes.reshape(1, -1)
+            elif n[1] == 1:
+                axes = axes.reshape(-1, 1)
+            
+            for i in range(n[0]):
+                for j in range(n[1]):
+                    idx = random.randrange(len(dataset))
+                    batch = dataset[idx]
+                    item = dataset.get_item(idx)
+                    image = item['image'].resize((512, 512))
+                    
+                    # Предсказание
+                    prediction = self.predict(batch, progress_bar=False, threshold=threshold)
+                    
+                    # Истинная метка
+                    true_label = item.get('label')
+                    
+                    # Формируем текст
+                    if self.multi_label:
+                        # Multi-label
+                        if classes is None:
+                            true_str = ', '.join([str(i) for i, v in enumerate(true_label) if v > 0.5]) if true_label is not None else 'N/A'
+                            pred_str = ', '.join([str(i) for i, v in enumerate(prediction) if v > 0.5])
+                        else:
+                            true_str = ', '.join([classes[i] for i, v in enumerate(true_label) if v > 0.5]) if true_label is not None else 'N/A'
+                            pred_str = ', '.join([classes[i] for i, v in enumerate(prediction) if v > 0.5])
+                    else:
+                        # Single-label
+                        if classes is None:
+                            true_str = str(true_label) if true_label is not None else 'N/A'
+                            pred_str = str(prediction)
+                        else:
+                            true_str = classes[true_label] if true_label is not None else 'N/A'
+                            pred_str = classes[prediction]
+                    
+                    # Отображение изображения
+                    ax = axes[i][j]
+                    ax.imshow(np.array(image))
+                    ax.axis('off')
+                    ax.set_title(f"Class: {true_str}\nPredict: {pred_str}", fontsize=10)
+            
+            plt.subplots_adjust(hspace=0.3)
+            plt.tight_layout()
+            plt.show()
+                
+        else:
+            # Визуализация для текста
+            total_amount = n[0] * n[1] if isinstance(n, tuple) else n
+            indices = random.sample(range(len(dataset)), min(total_amount, len(dataset)))
+            
+            for idx in indices:
+                batch = dataset[idx]
+                item = dataset.get_item(idx)
+                text = item['text'].replace('\n', ' \\n ')
+                
+                # Предсказание
+                prediction = self.predict(batch, progress_bar=False, threshold=threshold)
+                
+                # Истинная метка
+                true_label = item.get('label')
+                
+                # Формируем текст
+                if self.multi_label:
+                    # Multi-label
+                    if classes is None:
+                        true_str = ', '.join([str(i) for i, v in enumerate(true_label) if v > 0.5]) if true_label is not None else 'N/A'
+                        pred_str = ', '.join([str(i) for i, v in enumerate(prediction) if v > 0.5])
+                    else:
+                        true_str = ', '.join([classes[i] for i, v in enumerate(true_label) if v > 0.5]) if true_label is not None else 'N/A'
+                        pred_str = ', '.join([classes[i] for i, v in enumerate(prediction) if v > 0.5])
+                else:
+                    # Single-label
+                    if classes is None:
+                        true_str = str(true_label) if true_label is not None else 'N/A'
+                        pred_str = str(prediction)
+                    else:
+                        true_str = classes[true_label] if true_label is not None else 'N/A'
+                        pred_str = classes[prediction]
+                
+                # Выводим
+                text_preview = text[:80] + '...' if len(text) > 80 else text
+                print(f"Text: {text_preview}")
+                print(f"Class: {true_str}")
+                print(f"Predict: {pred_str}")
+                print()
 
 
 class SemanticSegmenter(BaseModel):
@@ -539,3 +701,59 @@ class SemanticSegmenter(BaseModel):
             return np.nanmean(ious)
         
         return iou_score
+
+    def visualize_segmentation(self, dataset, amount=3, figsize=(5, 5)):        
+        rows = amount
+        cols = 3  # Оригинальное изображение, предсказанная маска, оригинальная маска
+        fig, axes = plt.subplots(rows, cols, figsize=(figsize[0] * cols, figsize[1] * rows))
+        
+        if rows == 1:
+            axes = np.expand_dims(axes, axis=0)
+        
+        indices = random.sample(range(len(dataset)), min(amount, len(dataset)))
+        
+        for row, idx in enumerate(indices):
+            # Получаем данные
+            batch = dataset[idx]
+            item = dataset.get_item(idx)
+            image = item['image'].resize((512, 512))
+            
+            # Предсказание маски
+            # Получаем raw output от модели
+            model_args = batch.pop('model_args', list())
+            for i in range(len(model_args)):
+                model_args[i] = model_args[i].to(self.device).unsqueeze(0)
+            
+            self.model.eval()
+            with torch.no_grad():
+                output = self.model(*model_args)
+                predicted_mask = output.argmax(dim=1).squeeze().cpu().numpy()
+            
+            # Оригинальная маска (если есть)
+            original_mask = item.get('mask')
+            
+            # Отображение оригинального изображения
+            ax = axes[row][0]
+            ax.imshow(np.array(image))
+            ax.set_title("Оригинальное изображение", fontsize=10)
+            ax.axis('off')
+            
+            # Отображение предсказанной маски
+            ax = axes[row][1]
+            ax.imshow(predicted_mask, cmap='tab20')
+            ax.set_title("Предсказанная маска", fontsize=10)
+            ax.axis('off')
+            
+            # Отображение оригинальной маски
+            ax = axes[row][2]
+            if original_mask is not None:
+                original_mask_resized = original_mask.resize((512, 512))
+                ax.imshow(np.array(original_mask_resized), cmap='tab20')
+                ax.set_title("Оригинальная маска", fontsize=10)
+            else:
+                ax.text(0.5, 0.5, 'N/A', ha='center', va='center', fontsize=12)
+                ax.set_title("Оригинальная маска", fontsize=10)
+            ax.axis('off')
+        
+        plt.tight_layout()
+        plt.show()
