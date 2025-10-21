@@ -12,9 +12,7 @@
 
 ## ⚙️ Установка
 ```bash
-git clone https://github.com/Sefixnep/sefixlines.git
-cd sefixlines
-pip install -r requirements.txt
+pip install sefixlines
 ```
 
 ## 🎯 Начни с базового примера

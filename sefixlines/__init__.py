@@ -59,4 +59,4 @@ def baseline(task_type):
     
     # Записываем файл
     destination.write_bytes(source_content)
-    return destination
+    return str(destination)
