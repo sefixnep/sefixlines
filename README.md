@@ -23,9 +23,9 @@ pip install sefixlines
 import sefixlines
 
 # Создаёт готовый notebook с примером для вашей задачи
-sefixlines.setup('image_classification')        # Классификация изображений
-sefixlines.setup('image_semantic_segmentation') # Семантическая сегментация
-sefixlines.setup('text_classification')         # Классификация текста
+sefixlines.baseline('image_classification')        # Классификация изображений
+sefixlines.baseline('image_semantic_segmentation') # Семантическая сегментация
+sefixlines.baseline('text_classification')         # Классификация текста
 ```
 
 Эта команда создаст файл `sefixline.ipynb` в текущей директории с полностью рабочим примером, включая:
