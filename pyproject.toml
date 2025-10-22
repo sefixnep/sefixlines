@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sefixlines"
-version = "0.1.4"
-description = "Tool for quickly starting training, with model training optimization and a wide range of capabilities"
+version = "0.1.5"
+description = "Инструмент для быстрого решения ML задач, с оптимизацией обучения моделей и большим спектром возможностей"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
