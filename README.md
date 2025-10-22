@@ -1,4 +1,16 @@
-# 🚀 Модельные пайплайны **Sefixlines**
+<div align="center">
+
+# 🚀 Модельные пайплайны Sefixlines
+
+<img src="https://raw.githubusercontent.com/sefixnep/sefixlines/main/assets/logo.png" alt="Sefixlines Logo" width="500"/>
+
+<br>
+
+[![PyPI](https://img.shields.io/badge/PyPI-Install%20Package-blue?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/sefixlines/) &nbsp; [![GitHub](https://img.shields.io/badge/GitHub-View%20Source-black?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sefixnep/sefixlines)
+
+[![Telegram](https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/sefixnep) &nbsp; [![GitHub Profile](https://img.shields.io/badge/GitHub%20Profile-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sefixnep)
+
+</div>
 
 > 🆕 **UPDATE**: мультилейбл классификация  
 > 🆕 **UPDATE**: классификация текста  
@@ -65,11 +77,6 @@ segmenter.fit(train_loader, valid_loader, num_epochs=3)
 - аугментации в датасэте
 
 
-Контакты
---------
-
-- [![Telegram](https://img.shields.io/badge/Telegram-2CA5E0?style=flat&logo=telegram&logoColor=white)](https://t.me/sefixnep)  
-- [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/sefixnep)
 
 Лицензия
 --------
