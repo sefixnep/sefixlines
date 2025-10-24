@@ -65,11 +65,11 @@ sefixlines.data.TextClassificationDataset(texts, labels)
 ```python
 # Для классификации
 model_wrapper = sefixlines.models.Classifier(model, "MyModel")
-model_wrapper.fit(train_loader, valid_loader, num_epochs=3)
+model_wrapper.fit(train_set, valid_set, num_epochs=3)
 
 # Для семантической сегментации
 segmenter = sefixlines.models.SemanticSegmenter(model, "MySegmenter")
-segmenter.fit(train_loader, valid_loader, num_epochs=3)
+segmenter.fit(train_set, valid_set, num_epochs=3)
 ```
 
 ## 🛠 Что можно настроить

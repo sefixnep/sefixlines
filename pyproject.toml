@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sefixlines"
-version = "0.1.8"
+version = "0.1.9"
 description = "Инструмент для быстрого решения ML задач, с оптимизацией обучения моделей и большим спектром возможностей"
 readme = "README.md"
 requires-python = ">=3.9"

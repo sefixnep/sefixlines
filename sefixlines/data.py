@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torchvision.transforms as T
 from PIL import Image
+from torch.utils.data import Dataset
 
 
 def set_all_seeds(seed=42):
@@ -246,7 +247,7 @@ def show_dataset(dataset, **kwargs):
 
 # Datasets
 
-class ImageClassificationDataset(torch.utils.data.Dataset):
+class ImageClassificationDataset(Dataset):
     transform = T.Compose([
         T.Resize((224, 224)),
         T.ToTensor(),
@@ -298,7 +299,7 @@ class ImageClassificationDataset(torch.utils.data.Dataset):
         cls.transform.transforms[0] = T.Resize(new_size)
 
 
-class ImageSemanticSegmentationDataset(torch.utils.data.Dataset):
+class ImageSemanticSegmentationDataset(Dataset):
     image_transform = T.Compose([
         T.Resize((224, 224)),
         T.ToTensor(),
@@ -370,7 +371,7 @@ class ImageSemanticSegmentationDataset(torch.utils.data.Dataset):
         cls.mask_transform.transforms[1] = T.Lambda(function)
 
 
-class TextClassificationDataset(torch.utils.data.Dataset):
+class TextClassificationDataset(Dataset):
     tokenizer = None
     max_length = 128
 

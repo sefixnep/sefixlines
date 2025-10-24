@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import segmentation_models_pytorch as smp
 from torch import nn, optim
 from tqdm.notebook import tqdm
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
 from IPython.display import clear_output
 from sklearn.metrics import accuracy_score
 
@@ -271,7 +271,7 @@ class BaseModel(nn.Module):
         return fig
 
     def fit(self, 
-            train_loader: DataLoader, valid_loader: DataLoader = None, num_epochs: int = 1,
+            train_set: Dataset, valid_set: Dataset = None, num_epochs: int = 1, batch_size: int = 16,
             min_loss: bool = False, visualize: bool = True, use_best_model: bool = True, save_period: int = None, 
             train_params: dict = dict(), eval_params: dict = dict()
         ):
@@ -284,6 +284,9 @@ class BaseModel(nn.Module):
         if num_epochs < start_epoch:
             print(f"Модель уже обучена на {start_epoch - 1} эпох")
             return
+
+        train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
+        valid_loader = DataLoader(valid_set, batch_size=batch_size, shuffle=False) if valid_set is not None else None
 
         for epoch in range(start_epoch, num_epochs + 1):
             # Объявление о новой эпохе
