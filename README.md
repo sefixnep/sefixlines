@@ -12,8 +12,8 @@
 
 </div>
 
-> 🆕 **UPDATE**: мультилейбл классификация  
-> 🆕 **UPDATE**: классификация текста  
+> 🆕 **UPDATE**: Задача регрессии   
+> 🆕 **UPDATE**: Классификация текста  
 
 ## ✨ Возможности
 - ⚡ Быстрый старт без тонны кода
@@ -32,12 +32,15 @@ pip install sefixlines
 Для быстрого старта используйте готовые шаблоны с настроенными пайплайнами:
 
 ```python
-import sefixlines
+from sefixlines import baseline
 
 # Создаёт готовый notebook с примером для вашей задачи
-sefixlines.baseline('image_classification')        # Классификация изображений
-sefixlines.baseline('image_semantic_segmentation') # Семантическая сегментация
-sefixlines.baseline('text_classification')         # Классификация текста
+baseline.create('raw')                         # Универсально
+baseline.create('image_classification')        # Классификация изображений
+baseline.create('text_classification')         # Классификация текста
+baseline.create('image_regression')            # Регрессия изображений
+baseline.create('text_regression')             # Регрессия текста
+baseline.create('image_semantic_segmentation') # Семантическая сегментация
 ```
 
 Эта команда создаст файл `sefixline.ipynb` в текущей директории с полностью рабочим примером, включая:
@@ -51,32 +54,31 @@ sefixlines.baseline('text_classification')         # Классификация 
 ## 🚦 Минимальный запуск вручную
 1. **Подготовьте данные**
 ```python
-# Классификация изображения
-sefixlines.data.ImageClassificationDataset(paths, labels)
+from sefixlines import datasets
 
-# Семантическая сегментация
-sefixlines.data.ImageSemanticSegmentationDataset(image_paths, mask_paths)
-
-# Классификация текста
-sefixlines.data.TextClassificationDataset(texts, labels)
+datasets.ImageClassificationDataset(paths, labels)                  # Классификация изображения
+datasets.TextClassificationDataset(texts, labels)                   # Классификация текста
+datasets.ImageRegressionDataset(paths, labels)                      # Регрессия изображения
+datasets.TextRegressionDataset(texts, labels)                       # Регрессия текста
+datasets.ImageSemanticSegmentationDataset(image_paths, mask_paths)  # Семантическая сегментация
 ```
 2. **Выберите модель** (любая модель, возвращающая логиты).
 3. **Обучите**
 ```python
+from sefixlines import models
+
 # Для классификации
-model_wrapper = sefixlines.models.Classifier(model, "MyModel")
+model_wrapper = models.Classifier(model, "MyModel")
 model_wrapper.fit(train_set, valid_set, num_epochs=3)
 
+# Для регрессии
+segmenter = models.Regressor(model, "MyRegressor")
+segmenter.fit(train_set, valid_set, num_epochs=3)
+
 # Для семантической сегментации
-segmenter = sefixlines.models.SemanticSegmenter(model, "MySegmenter")
+segmenter = models.SemanticSegmenter(model, "MySemanticSegmenter")
 segmenter.fit(train_set, valid_set, num_epochs=3)
 ```
-
-## 🛠 Что можно настроить
-- свой `optimizer`, `scheduler` или `loss_fn`
-- аугментации в датасэте
-
-
 
 Лицензия
 --------
