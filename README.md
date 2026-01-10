@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🚀 Модельные пайплайны Sefixlines
+# 🚀 Sefixlines Model Pipelines
 
 <img src="https://raw.githubusercontent.com/sefixnep/sefixlines/main/assets/logo.png" alt="Sefixlines Logo" width="500"/>
 
@@ -12,75 +12,75 @@
 
 </div>
 
-> 🆕 **UPDATE**: Задача регрессии   
-> 🆕 **UPDATE**: Классификация текста  
+> 🆕 **UPDATE**: Regression tasks   
+> 🆕 **UPDATE**: Text classification  
 
-## ✨ Возможности
-- ⚡ Быстрый старт без тонны кода
-- 🖼️ Классификация изображений и текста
-- 🎯 Семантическая сегментация изображения
-- 💾 Автоматическое сохранение/загрузка весов
-- 🔧 Простая кастомизация (loss_fn, optimizer, scheduler, augmentation)
+## ✨ Features
+- ⚡ Quick start without tons of code
+- 🖼️ Image and text classification
+- 🎯 Image semantic segmentation
+- 💾 Automatic weights saving/loading
+- 🔧 Easy customization (loss_fn, optimizer, scheduler, augmentation)
 
-## ⚙️ Установка
+## ⚙️ Installation
 ```bash
 pip install sefixlines
 ```
 
-## 🎯 Начни с базового примера
+## 🎯 Get Started with Basic Example
 
-Для быстрого старта используйте готовые шаблоны с настроенными пайплайнами:
+For a quick start, use ready-made templates with configured pipelines:
 
 ```python
 from sefixlines import baseline
 
-# Создаёт готовый notebook с примером для вашей задачи
-baseline.create('raw')                         # Универсально
-baseline.create('image_classification')        # Классификация изображений
-baseline.create('text_classification')         # Классификация текста
-baseline.create('image_regression')            # Регрессия изображений
-baseline.create('text_regression')             # Регрессия текста
-baseline.create('image_semantic_segmentation') # Семантическая сегментация
+# Creates a ready-to-use notebook with an example for your task
+baseline.create('raw')                         # Universal
+baseline.create('image_classification')        # Image classification
+baseline.create('text_classification')         # Text classification
+baseline.create('image_regression')            # Image regression
+baseline.create('text_regression')             # Text regression
+baseline.create('image_semantic_segmentation') # Semantic segmentation
 ```
 
-Эта команда создаст файл `sefixline.ipynb` в текущей директории с полностью рабочим примером, включая:
-- 📊 Загрузку и подготовку данных
-- 🤖 Настройку модели
-- 🏋️ Обучение с визуализацией
-- 📈 Оценку результатов
+This command will create a `sefixline.ipynb` file in the current directory with a fully working example, including:
+- 📊 Data loading and preparation
+- 🤖 Model setup
+- 🏋️ Training with visualization
+- 📈 Results evaluation
 
-> ⚡ **Это самый быстрый способ начать работу!** Просто откройте созданный notebook и адаптируйте под свои данные.
+> ⚡ **This is the fastest way to get started!** Just open the created notebook and adapt it to your data.
 
-## 🚦 Минимальный запуск вручную
-1. **Подготовьте данные**
+## 🚦 Minimal Manual Run
+1. **Prepare your data**
 ```python
 from sefixlines import datasets
 
-datasets.ImageClassificationDataset(paths, labels)                  # Классификация изображения
-datasets.TextClassificationDataset(texts, labels)                   # Классификация текста
-datasets.ImageRegressionDataset(paths, labels)                      # Регрессия изображения
-datasets.TextRegressionDataset(texts, labels)                       # Регрессия текста
-datasets.ImageSemanticSegmentationDataset(image_paths, mask_paths)  # Семантическая сегментация
+datasets.ImageClassificationDataset(paths, labels)                  # Image classification
+datasets.TextClassificationDataset(texts, labels)                   # Text classification
+datasets.ImageRegressionDataset(paths, labels)                      # Image regression
+datasets.TextRegressionDataset(texts, labels)                       # Text regression
+datasets.ImageSemanticSegmentationDataset(image_paths, mask_paths)  # Semantic segmentation
 ```
-2. **Выберите модель** (любая модель, возвращающая логиты).
-3. **Обучите**
+2. **Choose a model** (any model that returns logits).
+3. **Train**
 ```python
 from sefixlines import models
 
-# Для классификации
+# For classification
 model_wrapper = models.Classifier(model, "MyModel")
 model_wrapper.fit(train_set, valid_set, num_epochs=3)
 
-# Для регрессии
-segmenter = models.Regressor(model, "MyRegressor")
-segmenter.fit(train_set, valid_set, num_epochs=3)
+# For regression
+regressor = models.Regressor(model, "MyRegressor")
+regressor.fit(train_set, valid_set, num_epochs=3)
 
-# Для семантической сегментации
+# For semantic segmentation
 segmenter = models.SemanticSegmenter(model, "MySemanticSegmenter")
 segmenter.fit(train_set, valid_set, num_epochs=3)
 ```
 
-Лицензия
---------
+License
+-------
 
-MIT. См. файл LICENSE.
+MIT. See LICENSE file.

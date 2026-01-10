@@ -59,7 +59,7 @@ class BaseModel(nn.Module):
         self.best_loss, self.best_loss_epoch = None, 0
 
         # Флаг для остановки обучения
-        self.stop_fiting = False
+        self.stop_fitting = False
 
         if model_dir is None:
             model_dir = f"./models/{name}"
@@ -70,26 +70,39 @@ class BaseModel(nn.Module):
             results_path = f"{self.model_dir}/results.csv"
 
             if not rework and os.path.exists(results_path) and os.listdir(f"{self.model_dir}/weights"):
-                results = pd.read_csv(results_path)
+                try:
+                    results = pd.read_csv(results_path)
+                    
+                    # Проверяем наличие необходимых колонок
+                    required_columns = ['lr', 'train_loss', 'train_score', 'valid_loss', 'valid_score']
+                    missing_columns = [col for col in required_columns if col not in results.columns]
+                    if missing_columns:
+                        raise ValueError(f"В файле results.csv отсутствуют необходимые колонки: {missing_columns}")
+                    
+                    # Синхронизируем историю
+                    self.__lr_history = results['lr'].tolist()
+                    self.__train_loss_history, self.__valid_loss_history = results['train_loss'].tolist(), results['valid_loss'].tolist()
+                    self.__train_score_history, self.__valid_score_history = results['train_score'].tolist(), results['valid_score'].tolist()
 
-                # Синхронизируем историю
-                self.__lr_history = results['lr'].tolist()
-                self.__train_loss_history, self.__valid_loss_history = results['train_loss'].tolist(), results['valid_loss'].tolist()
-                self.__train_score_history, self.__valid_score_history = results['train_score'].tolist(), results['valid_score'].tolist()
+                    # Лучшие значения
+                    # Проверяем, есть ли валидационные данные (не все NaN)
+                    if not results['valid_score'].isna().all():
+                        self.best_score, self.best_score_epoch = results['valid_score'].max(), results['valid_score'].idxmax() + 1
+                        self.best_loss, self.best_loss_epoch = results['valid_loss'].min(), results['valid_loss'].idxmin() + 1
+                    else:
+                        # Используем тренировочные метрики
+                        self.best_score, self.best_score_epoch = results['train_score'].max(), results['train_score'].idxmax() + 1
+                        self.best_loss, self.best_loss_epoch = results['train_loss'].min(), results['train_loss'].idxmin() + 1
 
-                # Лучшие значения
-                # Проверяем, есть ли валидационные данные (не все NaN)
-                if not results['valid_score'].isna().all():
-                    self.best_score, self.best_score_epoch = results['valid_score'].max(), results['valid_score'].idxmax() + 1
-                    self.best_loss, self.best_loss_epoch = results['valid_loss'].min(), results['valid_loss'].idxmin() + 1
-                else:
-                    # Используем тренировочные метрики
-                    self.best_score, self.best_score_epoch = results['train_score'].max(), results['train_score'].idxmax() + 1
-                    self.best_loss, self.best_loss_epoch = results['train_loss'].min(), results['train_loss'].idxmin() + 1
-
-                self.load("last")
+                    self.load("last")
+                except (pd.errors.EmptyDataError, pd.errors.ParserError, ValueError, KeyError) as e:
+                    print(f"Предупреждение: Не удалось загрузить историю из {results_path}: {e}")
+                    print("Инициализация с нулевой историей.")
+                    if os.path.exists(model_dir):
+                        shutil.rmtree(model_dir)
             else:
-                shutil.rmtree(model_dir)
+                if os.path.exists(model_dir):
+                    shutil.rmtree(model_dir)
 
         os.makedirs(f"{self.model_dir}/weights", exist_ok=True)
     
@@ -160,6 +173,8 @@ class BaseModel(nn.Module):
         count = 0
         total_loss = 0
         total_score = 0
+        current_loss = 0.0
+        current_score = 0.0
 
         # Название для tqdm
         progress_desc = 'Training' if mode == 'train' else 'Evaluating'
@@ -214,11 +229,11 @@ class BaseModel(nn.Module):
                 progress_bar.set_postfix(**display)
 
         except KeyboardInterrupt:
-            self.stop_fiting = True
+            self.stop_fitting = True
             print(f"\n{progress_desc} прервано пользователем. Завершаем текущую эпоху...")
 
             if not count:
-                return 0, 0
+                return {'loss': 0.0, 'score': 0.0}
 
         # Возвращаем средний loss и score за эпоху
         return {
@@ -282,6 +297,7 @@ class BaseModel(nn.Module):
         sns.set_palette('Set2')
 
         start_epoch = len(self.__train_loss_history) + 1
+        epoch = start_epoch - 1  # Инициализируем epoch для случая, если цикл не выполнится
 
         if num_epochs < start_epoch:
             print(f"Модель уже обучена на {start_epoch - 1} эпох")
@@ -320,7 +336,7 @@ class BaseModel(nn.Module):
             else:
                 print(f" - Train: {train_score:.4f}\n")
 
-            if not self.stop_fiting:
+            if not self.stop_fitting:
                 # Сохранение истории
                 self.__lr_history.append(self.lr)
                 self.__train_loss_history.append(train_loss)
@@ -347,14 +363,14 @@ class BaseModel(nn.Module):
                         self.best_loss = valid_loss
                         self.best_loss_epoch = epoch
 
-                        if min_loss and not self.stop_fiting:
+                        if min_loss and not self.stop_fitting:
                             self.save()
 
                     if self.best_score is None or valid_score > self.best_score:
                         self.best_score = valid_score
                         self.best_score_epoch = epoch
 
-                        if not min_loss and not self.stop_fiting:
+                        if not min_loss and not self.stop_fitting:
                             self.save()
                 else:
                     # Если нет валидации, сохраняем на основе тренировочных метрик
@@ -362,14 +378,14 @@ class BaseModel(nn.Module):
                         self.best_loss = train_loss
                         self.best_loss_epoch = epoch
 
-                        if min_loss and not self.stop_fiting:
+                        if min_loss and not self.stop_fitting:
                             self.save()
 
                     if self.best_score is None or train_score > self.best_score:
                         self.best_score = train_score
                         self.best_score_epoch = epoch
 
-                        if not min_loss and not self.stop_fiting:
+                        if not min_loss and not self.stop_fitting:
                             self.save()
 
                 # - Epoch
@@ -379,17 +395,22 @@ class BaseModel(nn.Module):
                 # Делаем шаг планировщиком
                 if self.__scheduler is not None and not isinstance(self.__scheduler, optim.lr_scheduler.OneCycleLR):
                     if isinstance(self.__scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+                        old_lr = self.lr
                         if valid_set is not None:
                             self.__scheduler.step(valid_loss if min_loss else valid_score)
                         else:
                             self.__scheduler.step(train_loss if min_loss else train_score)
-
-                        if self.__scheduler.get_last_lr()[0] != self.lr:
+                        
+                        # ReduceLROnPlateau не имеет get_last_lr(), проверяем через param_groups
+                        new_lr = self.__optimizer.param_groups[0]['lr']
+                        if new_lr != old_lr:
+                            self.lr = new_lr
                             self.load()
+                        else:
+                            self.lr = new_lr
                     else:
                         self.__scheduler.step()
-                    
-                    self.lr = self.__scheduler.get_last_lr()[0]
+                        self.lr = self.__scheduler.get_last_lr()[0]
 
             # Визуализация истории
             if len(self.__train_loss_history) > 1:
@@ -409,14 +430,14 @@ class BaseModel(nn.Module):
 
 
             # Проверяем флаг остановки обучения
-            if self.stop_fiting:
+            if self.stop_fitting:
                 print("Обучение остановлено пользователем.")
 
-                self.stop_fiting = False
+                self.stop_fitting = False
                 break
 
         # Загружаем лучшие веса модели
-        if use_best_model and epoch > 1:
+        if use_best_model and epoch > start_epoch - 1 and len(self.__train_loss_history) > 0:
             self.load()
 
     @torch.inference_mode()

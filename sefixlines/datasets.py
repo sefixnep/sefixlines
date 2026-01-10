@@ -9,17 +9,23 @@ from torch.utils.data import Dataset
 
 # Classification
 class ImageClassificationDataset(Dataset):
-    transform = T.Compose([
-        T.Resize((224, 224)),
-        T.ToTensor(),
-        T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-    ])
-
     def __init__(self, image_paths, labels=None, augment=False):
         self.image_paths = image_paths
         self.labels = labels
         self.augment = augment
-        self.multi_label = self.labels is not None and isinstance(self.labels[0], (list, np.ndarray))
+        
+        # Валидация длины данных
+        if self.labels is not None and len(self.image_paths) != len(self.labels):
+            raise ValueError(f"Длина image_paths ({len(self.image_paths)}) не совпадает с длиной labels ({len(self.labels)})")
+        
+        self.multi_label = self.labels is not None and len(self.labels) > 0 and isinstance(self.labels[0], (list, np.ndarray))
+        
+        # Создаем transform как instance-переменную
+        self.transform = T.Compose([
+            T.Resize((224, 224)),
+            T.ToTensor(),
+            T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        ])
 
     def __len__(self):
         return len(self.image_paths)
@@ -27,9 +33,12 @@ class ImageClassificationDataset(Dataset):
     def __getitem__(self, idx):
         # Считываем изображение
         image_path = self.image_paths[idx]
-        image_pil = Image.open(image_path).convert("RGB")
+        try:
+            image_pil = Image.open(image_path).convert("RGB")
+        except (IOError, OSError, FileNotFoundError) as e:
+            raise RuntimeError(f"Не удалось загрузить изображение по пути '{image_path}': {e}")
 
-        # Приминяем аугментации, если необходимо
+        # Применяем аугментации, если необходимо
         if self.augment and hasattr(self, 'augmentation'):
             image_pil = self.augmentation(image_pil)
 
@@ -47,7 +56,10 @@ class ImageClassificationDataset(Dataset):
     
     def get_item(self, idx):
         image_path = self.image_paths[idx]
-        image_pil = Image.open(image_path)
+        try:
+            image_pil = Image.open(image_path)
+        except (IOError, OSError, FileNotFoundError) as e:
+            raise RuntimeError(f"Не удалось загрузить изображение по пути '{image_path}': {e}")
 
         result = {'image': image_pil}
         if self.labels is not None:
@@ -140,9 +152,8 @@ class ImageClassificationDataset(Dataset):
         plt.tight_layout()
         plt.show()
     
-    @classmethod
-    def change_image_size(cls, new_size):
-        cls.transform.transforms[0] = T.Resize(new_size)
+    def change_image_size(self, new_size):
+        self.transform.transforms[0] = T.Resize(new_size)
 
 
 class TextClassificationDataset(Dataset):
@@ -152,12 +163,20 @@ class TextClassificationDataset(Dataset):
     def __init__(self, texts, labels=None):
         self.texts = texts
         self.labels = labels
-        self.multi_label = self.labels is not None and isinstance(self.labels[0], (list, np.ndarray))
+        
+        # Валидация длины данных
+        if self.labels is not None and len(self.texts) != len(self.labels):
+            raise ValueError(f"Длина texts ({len(self.texts)}) не совпадает с длиной labels ({len(self.labels)})")
+        
+        self.multi_label = self.labels is not None and len(self.labels) > 0 and isinstance(self.labels[0], (list, np.ndarray))
 
     def __len__(self):
         return len(self.texts)
 
     def __getitem__(self, idx):
+        if self.tokenizer is None:
+            raise ValueError("tokenizer не установлен. Установите tokenizer перед использованием датасета.")
+        
         text = self.texts[idx]
         encoding = self.tokenizer(text, padding='max_length', truncation=True, max_length=self.max_length, return_tensors="pt")
         encoding = {k: v.squeeze(0) for k, v in encoding.items()}
@@ -235,17 +254,23 @@ class TextClassificationDataset(Dataset):
 
 # Regressor
 class ImageRegressionDataset(Dataset):
-    transform = T.Compose([
-        T.Resize((224, 224)),
-        T.ToTensor(),
-        T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-    ])
-
     def __init__(self, image_paths, values=None, augment=False):
         self.image_paths = image_paths
         self.values = values
         self.augment = augment
-        self.multi_value = self.values is not None and isinstance(self.values[0], (list, np.ndarray))
+        
+        # Валидация длины данных
+        if self.values is not None and len(self.image_paths) != len(self.values):
+            raise ValueError(f"Длина image_paths ({len(self.image_paths)}) не совпадает с длиной values ({len(self.values)})")
+        
+        self.multi_value = self.values is not None and len(self.values) > 0 and isinstance(self.values[0], (list, np.ndarray))
+        
+        # Создаем transform как instance-переменную
+        self.transform = T.Compose([
+            T.Resize((224, 224)),
+            T.ToTensor(),
+            T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        ])
 
     def __len__(self):
         return len(self.image_paths)
@@ -253,9 +278,12 @@ class ImageRegressionDataset(Dataset):
     def __getitem__(self, idx):
         # Считываем изображение
         image_path = self.image_paths[idx]
-        image_pil = Image.open(image_path).convert("RGB")
+        try:
+            image_pil = Image.open(image_path).convert("RGB")
+        except (IOError, OSError, FileNotFoundError) as e:
+            raise RuntimeError(f"Не удалось загрузить изображение по пути '{image_path}': {e}")
 
-        # Приминяем аугментации, если необходимо
+        # Применяем аугментации, если необходимо
         if self.augment and hasattr(self, 'augmentation'):
             image_pil = self.augmentation(image_pil)
 
@@ -272,7 +300,10 @@ class ImageRegressionDataset(Dataset):
     
     def get_item(self, idx):
         image_path = self.image_paths[idx]
-        image_pil = Image.open(image_path)
+        try:
+            image_pil = Image.open(image_path)
+        except (IOError, OSError, FileNotFoundError) as e:
+            raise RuntimeError(f"Не удалось загрузить изображение по пути '{image_path}': {e}")
 
         result = {'image': image_pil}
         if self.values is not None:
@@ -362,9 +393,8 @@ class ImageRegressionDataset(Dataset):
         plt.tight_layout()
         plt.show()
     
-    @classmethod
-    def change_image_size(cls, new_size):
-        cls.transform.transforms[0] = T.Resize(new_size)
+    def change_image_size(self, new_size):
+        self.transform.transforms[0] = T.Resize(new_size)
 
 
 class TextRegressionDataset(Dataset):
@@ -374,12 +404,20 @@ class TextRegressionDataset(Dataset):
     def __init__(self, texts, values=None):
         self.texts = texts
         self.values = values
-        self.multi_value = self.values is not None and isinstance(self.values[0], (list, np.ndarray))
+        
+        # Валидация длины данных
+        if self.values is not None and len(self.texts) != len(self.values):
+            raise ValueError(f"Длина texts ({len(self.texts)}) не совпадает с длиной values ({len(self.values)})")
+        
+        self.multi_value = self.values is not None and len(self.values) > 0 and isinstance(self.values[0], (list, np.ndarray))
 
     def __len__(self):
         return len(self.texts)
 
     def __getitem__(self, idx):
+        if self.tokenizer is None:
+            raise ValueError("tokenizer не установлен. Установите tokenizer перед использованием датасета.")
+        
         text = self.texts[idx]
         encoding = self.tokenizer(text, padding='max_length', truncation=True, max_length=self.max_length, return_tensors="pt")
         encoding = {k: v.squeeze(0) for k, v in encoding.items()}
@@ -442,22 +480,27 @@ class TextRegressionDataset(Dataset):
 
 # Semantic Segmentation
 class ImageSemanticSegmentationDataset(Dataset):
-    image_transform = T.Compose([
-        T.Resize((224, 224)),
-        T.ToTensor(),
-        T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-    ])
-
-    mask_transform = T.Compose([
-        T.Resize((224, 224)),
-        T.Lambda(lambda x: np.array(x) / 255 > 0.5),
-        T.Lambda(lambda x: torch.tensor(x, dtype=torch.long)),
-    ])
-
     def __init__(self, image_paths, mask_paths=None, augment=False):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.augment = augment
+        
+        # Валидация длины данных
+        if self.mask_paths is not None and len(self.image_paths) != len(self.mask_paths):
+            raise ValueError(f"Длина image_paths ({len(self.image_paths)}) не совпадает с длиной mask_paths ({len(self.mask_paths)})")
+        
+        # Создаем transforms как instance-переменные
+        self.image_transform = T.Compose([
+            T.Resize((224, 224)),
+            T.ToTensor(),
+            T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        ])
+
+        self.mask_transform = T.Compose([
+            T.Resize((224, 224), interpolation=T.InterpolationMode.NEAREST),
+            T.Lambda(lambda x: np.array(x)),
+            T.Lambda(lambda x: torch.tensor(x, dtype=torch.long)),
+        ])
     
     def __len__(self):
         return len(self.image_paths)
@@ -465,10 +508,13 @@ class ImageSemanticSegmentationDataset(Dataset):
     def __getitem__(self, idx):
         # Считываем изображение
         image_path = self.image_paths[idx]
-        image_pil = Image.open(image_path).convert("RGB")
+        try:
+            image_pil = Image.open(image_path).convert("RGB")
+        except (IOError, OSError, FileNotFoundError) as e:
+            raise RuntimeError(f"Не удалось загрузить изображение по пути '{image_path}': {e}")
 
         if self.mask_paths is None:
-            # Приминяем аугментации, если необходимо
+            # Применяем аугментации, если необходимо
             if self.augment and hasattr(self, 'augmentation'):
                 augmented = self.augmentation(image=np.array(image_pil))
                 image_pil = Image.fromarray(augmented['image'])
@@ -478,9 +524,12 @@ class ImageSemanticSegmentationDataset(Dataset):
 
         # Считываем маску
         mask_path = self.mask_paths[idx]
-        mask_pil = Image.open(mask_path).convert("L")
+        try:
+            mask_pil = Image.open(mask_path).convert("L")
+        except (IOError, OSError, FileNotFoundError) as e:
+            raise RuntimeError(f"Не удалось загрузить маску по пути '{mask_path}': {e}")
 
-        # Приминяем аугментации, если необходимо
+        # Применяем аугментации, если необходимо
         if self.augment and hasattr(self, 'augmentation'):
             augmented = self.augmentation(image=np.array(image_pil), mask=np.array(mask_pil))
             image_pil, mask_pil =  Image.fromarray(augmented['image']), Image.fromarray(augmented['mask'])
@@ -493,12 +542,18 @@ class ImageSemanticSegmentationDataset(Dataset):
 
     def get_item(self, idx):
         image_path = self.image_paths[idx]
-        image_pil = Image.open(image_path).convert("RGB")
+        try:
+            image_pil = Image.open(image_path).convert("RGB")
+        except (IOError, OSError, FileNotFoundError) as e:
+            raise RuntimeError(f"Не удалось загрузить изображение по пути '{image_path}': {e}")
 
         result = {'image': image_pil}
         if self.mask_paths is not None:
             mask_path = self.mask_paths[idx]
-            mask_pil = Image.open(mask_path).convert("L")
+            try:
+                mask_pil = Image.open(mask_path).convert("L")
+            except (IOError, OSError, FileNotFoundError) as e:
+                raise RuntimeError(f"Не удалось загрузить маску по пути '{mask_path}': {e}")
             result['target'] = mask_pil
         
         return result # image, (mask)
@@ -544,11 +599,9 @@ class ImageSemanticSegmentationDataset(Dataset):
         plt.tight_layout()
         plt.show()
 
-    @classmethod
-    def change_image_size(cls, new_size):
-        cls.image_transform.transforms[0] = T.Resize(new_size)
-        cls.mask_transform.transforms[0] = T.Resize(new_size)
+    def change_image_size(self, new_size):
+        self.image_transform.transforms[0] = T.Resize(new_size)
+        self.mask_transform.transforms[0] = T.Resize(new_size)
 
-    @classmethod
-    def change_mask_preprocess(cls, function):
-        cls.mask_transform.transforms[1] = T.Lambda(function)
+    def change_mask_preprocess(self, function):
+        self.mask_transform.transforms[1] = T.Lambda(function)
